@@ -8,6 +8,7 @@ import 'CustomerListScreen.dart';
 import 'ac_ledger_list_screen.dart';
 import 'dashboardscreen.dart';
 import 'loan_issue_screen.dart';
+import 'loan_list_screen.dart';
 import 'loan_type_list_screen.dart';
 import 'loan_type_master_screen.dart';
 
@@ -711,7 +712,7 @@ class _EntrySectionScreenState extends State<EntrySectionScreen> with SingleTick
               controller: _tabController,
               children: [
                 const AmountReceiptEntryScreen(),
-                const LoanIssueScreen(), // You already have this
+                const LoanListScreen(), // You already have this
                 const CollectionEntryScreen(),
                 const AccountClosingScreen(),
                 const PaymentEntryScreen(),
@@ -726,7 +727,7 @@ class _EntrySectionScreenState extends State<EntrySectionScreen> with SingleTick
         index: entrySubIndex,
         children: [
           const AmountReceiptEntryScreen(),
-          const LoanIssueScreen(),
+          const LoanListScreen(),
           const CollectionEntryScreen(),
           const AccountClosingScreen(),
           const PaymentEntryScreen(),

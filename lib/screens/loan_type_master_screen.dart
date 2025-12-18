@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-import '../services/loan_apiservice.dart';
+import '../services/loantype_apiservice.dart';
 
 
 class LoanTypeMasterScreen extends StatefulWidget {
@@ -14,7 +14,7 @@ class LoanTypeMasterScreen extends StatefulWidget {
 
 class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final LoanApiService _apiService = LoanApiService();
+  final LoantypeApiService _apiService = LoantypeApiService();
 
   bool _isLoading = false;
   bool _isEditMode = false;

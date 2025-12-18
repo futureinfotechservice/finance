@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/loan_apiservice.dart';
+import '../services/loantype_apiservice.dart';
 import 'loan_type_master_screen.dart';
 
 class LoanTypeListScreen extends StatefulWidget {
@@ -11,7 +11,7 @@ class LoanTypeListScreen extends StatefulWidget {
 }
 
 class _LoanTypeListScreenState extends State<LoanTypeListScreen> {
-  final LoanApiService _apiService = LoanApiService();
+  final LoantypeApiService _apiService = LoantypeApiService();
   List<LoanTypeModel> _loanTypes = [];
   bool _isLoading = true;
   String _searchQuery = '';
