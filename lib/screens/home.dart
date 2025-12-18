@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'CustomerListScreen.dart';
 import 'ac_ledger_list_screen.dart';
+import 'collection_list_screen.dart';
 import 'dashboardscreen.dart';
 import 'loan_issue_screen.dart';
 import 'loan_list_screen.dart';
@@ -713,7 +714,7 @@ class _EntrySectionScreenState extends State<EntrySectionScreen> with SingleTick
               children: [
                 const AmountReceiptEntryScreen(),
                 const LoanListScreen(), // You already have this
-                const CollectionEntryScreen(),
+                const CollectionListScreen(),
                 const AccountClosingScreen(),
                 const PaymentEntryScreen(),
               ],
@@ -728,7 +729,7 @@ class _EntrySectionScreenState extends State<EntrySectionScreen> with SingleTick
         children: [
           const AmountReceiptEntryScreen(),
           const LoanListScreen(),
-          const CollectionEntryScreen(),
+          const CollectionListScreen(),
           const AccountClosingScreen(),
           const PaymentEntryScreen(),
         ],
