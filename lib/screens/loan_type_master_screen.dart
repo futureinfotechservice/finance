@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Add this import
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../services/loantype_apiservice.dart';
-
 
 class LoanTypeMasterScreen extends StatefulWidget {
   final LoanTypeModel? loanType; // For edit mode
@@ -21,9 +21,19 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
 
   final TextEditingController _loanTypeController = TextEditingController();
   final TextEditingController _penaltyAmountController = TextEditingController();
+  final TextEditingController _noOfWeeksController = TextEditingController(); // New controller
 
   String? _selectedCollectionDay;
-  String? _selectedNoOfWeeks;
+
+  // Remove or keep for reference if needed elsewhere
+  // final List<String> _noOfWeeksOptions = [
+  //   '4 Weeks',
+  //   '8 Weeks',
+  //   '12 Weeks',
+  //   '16 Weeks',
+  //   '20 Weeks',
+  //   '24 Weeks'
+  // ];
 
   final List<String> _collectionDays = [
     'Monday',
@@ -33,15 +43,6 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
     'Friday',
     'Saturday',
     'Sunday'
-  ];
-
-  final List<String> _noOfWeeksOptions = [
-    '4 Weeks',
-    '8 Weeks',
-    '12 Weeks',
-    '16 Weeks',
-    '20 Weeks',
-    '24 Weeks'
   ];
 
   @override
@@ -58,12 +59,11 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
       _loanTypeController.text = widget.loanType!.loantype;
       _penaltyAmountController.text = widget.loanType!.penaltyamount;
 
-      // Extract numeric value from stored format
+      // For No of Weeks: Extract numeric value from stored format
       final storedWeeks = widget.loanType!.noofweeks;
-      _selectedNoOfWeeks = _noOfWeeksOptions.firstWhere(
-            (option) => option.contains(storedWeeks),
-        orElse: () => storedWeeks,
-      );
+      // Extract only numbers from the stored value (e.g., "4 Weeks" -> "4")
+      final numericValue = storedWeeks.replaceAll(RegExp(r'[^0-9]'), '');
+      _noOfWeeksController.text = numericValue;
 
       _selectedCollectionDay = widget.loanType!.collectionday;
     }
@@ -73,6 +73,7 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
   void dispose() {
     _loanTypeController.dispose();
     _penaltyAmountController.dispose();
+    _noOfWeeksController.dispose(); // Dispose the new controller
     super.dispose();
   }
 
@@ -91,15 +92,16 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
       return;
     }
 
-    if (_selectedNoOfWeeks == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select number of weeks'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    // No longer need this check as it will be validated in the text field
+    // if (_selectedNoOfWeeks == null) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('Please select number of weeks'),
+    //       backgroundColor: Colors.red,
+    //     ),
+    //   );
+    //   return;
+    // }
 
     setState(() {
       _isLoading = true;
@@ -115,7 +117,7 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
           loantype: _loanTypeController.text,
           collectionday: _selectedCollectionDay!,
           penaltyamount: _penaltyAmountController.text,
-          noofweeks: _selectedNoOfWeeks!,
+          noofweeks: _noOfWeeksController.text, // Now using the text value directly
         );
       } else {
         result = await _apiService.insertLoanType(
@@ -123,7 +125,7 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
           loantype: _loanTypeController.text,
           collectionday: _selectedCollectionDay!,
           penaltyamount: _penaltyAmountController.text,
-          noofweeks: _selectedNoOfWeeks!,
+          noofweeks: _noOfWeeksController.text, // Now using the text value directly
         );
       }
 
@@ -166,10 +168,10 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
     _formKey.currentState?.reset();
     setState(() {
       _selectedCollectionDay = null;
-      _selectedNoOfWeeks = null;
     });
     _loanTypeController.clear();
     _penaltyAmountController.clear();
+    _noOfWeeksController.clear(); // Clear the weeks controller
   }
 
   Widget _buildInputField({
@@ -177,6 +179,7 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
     required TextEditingController controller,
     bool isRequired = true,
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -201,6 +204,7 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
             decoration: const InputDecoration(
               contentPadding: EdgeInsets.symmetric(horizontal: 16),
               border: InputBorder.none,
@@ -485,16 +489,31 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
 
                                 SizedBox(height: isWeb ? 32 : 24),
 
-                                _buildDropdownField(
+                                // Changed from dropdown to text input field for No of Weeks
+                                _buildInputField(
                                   label: 'No of Weeks :',
-                                  options: _noOfWeeksOptions,
-                                  selectedValue: _selectedNoOfWeeks,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _selectedNoOfWeeks = value;
-                                    });
+                                  controller: _noOfWeeksController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly, // Accepts only numbers
+                                    LengthLimitingTextInputFormatter(3), // Limit to 3 digits max (999 weeks)
+                                  ],
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Number of weeks is required';
+                                    }
+                                    final weeks = int.tryParse(value);
+                                    if (weeks == null) {
+                                      return 'Enter a valid number';
+                                    }
+                                    if (weeks <= 0) {
+                                      return 'Weeks must be greater than 0';
+                                    }
+                                    if (weeks > 999) {
+                                      return 'Weeks cannot exceed 999';
+                                    }
+                                    return null;
                                   },
-                                  hintText: 'Select number of weeks',
                                 ),
 
                                 SizedBox(height: isWeb ? 40 : 32),
@@ -567,3 +586,4 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
     );
   }
 }
+
