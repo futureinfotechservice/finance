@@ -71,7 +71,7 @@ class collectionapiservice{
       }
     }
   }
-
+// In the recordCollection method, ensure you're sending paidamount:
   Future<String> recordCollection({
     required BuildContext context,
     required String loanId,
@@ -90,7 +90,7 @@ class collectionapiservice{
         body: {
           'companyid': companyid,
           'loanid': loanId,
-          'paymentdata': json.encode(paymentData),
+          'paymentdata': json.encode(paymentData), // This now includes paidamount
           'collectiondate': collectionDate,
           'paymentmode': paymentMode,
           'collectedby': userid,
@@ -98,7 +98,6 @@ class collectionapiservice{
       );
 
       print("Collection Insert Response: ${response.body}");
-
       return _handleResponse(context, response.body);
     } catch (e) {
       print("Record Collection Error: $e");
@@ -111,6 +110,118 @@ class collectionapiservice{
       return "Failed";
     }
   }
+  // Future<String> recordCollection({
+  //   required BuildContext context,
+  //   required String loanId,
+  //   required List<Map<String, dynamic>> paymentData,
+  //   required String collectionDate,
+  //   required String paymentMode,
+  // }) async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   final companyid = prefs.getString('companyid') ?? '';
+  //   final userid = prefs.getString('id') ?? '';
+  //
+  //   var url = Uri.parse('$baseUrl/collection_insert.php');
+  //   try {
+  //     var response = await http.post(
+  //       url,
+  //       body: {
+  //         'companyid': companyid,
+  //         'loanid': loanId,
+  //         'paymentdata': json.encode(paymentData),
+  //         'collectiondate': collectionDate,
+  //         'paymentmode': paymentMode,
+  //         'collectedby': userid,
+  //       },
+  //     );
+  //
+  //     print("Collection Insert Response: ${response.body}");
+  //
+  //     return _handleResponse(context, response.body);
+  //   } catch (e) {
+  //     print("Record Collection Error: $e");
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //         content: Text("Error: $e"),
+  //         backgroundColor: Colors.red,
+  //       ),
+  //     );
+  //     return "Failed";
+  //   }
+  // }
+  Future<String> generateCollectionNo(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    try {
+      var url = Uri.parse('$baseUrl/collection_generate_no.php');
+      var response = await http.post(
+        url,
+        body: {'companyid': companyid},
+      );
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          return responseData['collectionno'];
+        }
+      }
+      return '';
+    } catch (e) {
+      print("Generate Collection No Error: $e");
+      return '';
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchActiveLoans(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/loan_fetch_active.php');
+    try {
+      var response = await http.post(
+        url,
+        body: {'companyid': companyid},
+      );
+
+      print("Active Loans Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          List<dynamic> items = responseData['loans'];
+
+          // Properly map the items to ensure they are Maps, not functions
+          List<Map<String, dynamic>> loansList = [];
+
+          for (var item in items) {
+            if (item is Map<String, dynamic>) {
+              loansList.add({
+                'id': item['id']?.toString() ?? '',
+                'loanno': item['loanno']?.toString() ?? '',
+                'customername': item['customername']?.toString() ?? '',
+                'loanamount': item['loanamount']?.toString() ?? '0',
+                'display': '${item['loanno']?.toString() ?? ''} - ${item['customername']?.toString() ?? ''}',
+              });
+            }
+          }
+
+          print("✅ Processed ${loansList.length} active loans");
+          return loansList;
+        } else {
+          print("❌ API returned error: ${responseData['message']}");
+          return [];
+        }
+      } else {
+        print("❌ HTTP Error: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("❌ Fetch Active Loans Error: $e");
+      return [];
+    }
+  }
+
 
   Future<List<CollectionModel>> fetchCollections(BuildContext context, {String? fromDate, String? toDate}) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
