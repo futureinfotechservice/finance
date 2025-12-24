@@ -71,7 +71,7 @@ try {
     
     error_log("Found loan ID: $loanid, Fixed Penalty Amount: $fixedPenalty");
     
-    // Fetch payment schedule
+    // Fetch payment schedule with SUM of penaltypaid
     $scheduleSql = "SELECT * FROM loanschedule 
                     WHERE loanid = '$loanid' 
                     AND companyid = '$companyid'
@@ -99,15 +99,18 @@ try {
     
     error_log("Found " . count($schedule) . " schedule entries, " . count($pendingPayments) . " pending");
     
-    // Calculate totals including paid amount
+    // Calculate totals including paid amount and sum of penaltypaid
     $totalPaid = 0;
     $totalPenaltyPaid = 0;
     $totalPending = 0;
     $totalPendingPenalty = 0;
     
     foreach ($schedule as $payment) {
-        if ($payment['status'] == 'Paid') {
-            $totalPaid += (float)$payment['paidamount']; // Use paidamount column
+        if ($payment['status'] == 'Paid' || $payment['status'] == 'Unpaid') {
+            // Sum paidamount for paid payments
+            $totalPaid += (float)$payment['paidamount'];
+            
+            // SUM of penaltypaid column
             $totalPenaltyPaid += (float)($payment['penaltypaid'] ?? 0);
         } else if ($payment['status'] == 'Pending') {
             $totalPending += (float)$payment['dueamount'];
@@ -123,17 +126,26 @@ try {
     $loanBalance = $totalPending;
     $penaltyBalance = $totalPendingPenalty;
     
+    // Get last schedule entry for displaying next due date info
+    $lastScheduleSql = "SELECT dueno, duedate FROM loanschedule 
+                       WHERE loanid = '$loanid' 
+                       AND companyid = '$companyid'
+                       ORDER BY dueno DESC LIMIT 1";
+    $lastScheduleResult = mysqli_query($conn, $lastScheduleSql);
+    $lastSchedule = mysqli_fetch_assoc($lastScheduleResult);
+    
     $response["status"] = "success";
     $response["message"] = "Loan details fetched successfully";
     $response["loan"] = array_merge($loan, [
         'fixed_penalty_amount' => $fixedPenalty
     ]);
     $response["schedule"] = $schedule;
+    $response["last_schedule"] = $lastSchedule;
     $response["totals"] = [
         "loanPaid" => number_format($totalPaid, 2, '.', ''),
         "loanBalance" => number_format($loanBalance, 2, '.', ''),
         "pendingAmount" => number_format($totalPending, 2, '.', ''),
-        "penaltyPaid" => number_format($totalPenaltyPaid, 2, '.', ''),
+        "penaltyPaid" => number_format($totalPenaltyPaid, 2, '.', ''), // SUM of penaltypaid
         "fixedPenaltyAmount" => number_format($fixedPenalty, 2, '.', ''),
         "pendingPenalty" => number_format($totalPendingPenalty, 2, '.', ''),
         "totalBalance" => number_format($loanBalance + $penaltyBalance, 2, '.', ''),

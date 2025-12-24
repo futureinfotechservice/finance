@@ -293,8 +293,47 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
         });
       }
     }
-  }
+    if (_pendingPayments.isNotEmpty) {
+      // Get the last due date to calculate next weekday
+      DateTime lastDueDate = _pendingPayments.last['duedate'] != null
+          ? DateTime.parse(_pendingPayments.last['duedate'])
+          : DateTime.now();
 
+      // Calculate next weekday (7 days from last due date)
+      DateTime nextWeekday = lastDueDate.add(const Duration(days: 7));
+      String nextWeekdayStr = DateFormat('dd/MM/yyyy').format(nextWeekday);
+
+      print("ℹ️ Next weekday for new unpaid EMI: $nextWeekdayStr");
+
+      // You can show this info to the user if needed
+      // For example, in a snackbar or info box
+    }
+  }
+// Add this helper function to your _CollectionEntryScreenState class
+  String _getNextWeekdayInfo(List<Map<String, dynamic>> pendingPayments) {
+    if (pendingPayments.isEmpty) return '';
+
+    try {
+      // Get the last due date from pending payments
+      DateTime? lastDueDate;
+      for (var payment in pendingPayments.reversed) {
+        if (payment['duedate'] != null) {
+          lastDueDate = DateTime.parse(payment['duedate']);
+          break;
+        }
+      }
+
+      // If no due date found, use current date
+      lastDueDate ??= DateTime.now();
+
+      // Calculate next weekday (7 days from last due date)
+      DateTime nextWeekday = lastDueDate.add(const Duration(days: 7));
+      return DateFormat('dd/MM/yyyy').format(nextWeekday);
+    } catch (e) {
+      print("Error calculating next weekday: $e");
+      return '';
+    }
+  }
   void _onLoanSelected(String? value) {
     print("🔽 Loan selected: $value");
 
@@ -1024,6 +1063,582 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
     );
   }
 
+  // Widget _buildPaymentScheduleTable() {
+  //   if (_pendingPayments.isEmpty) {
+  //     return Container(
+  //       padding: const EdgeInsets.all(40),
+  //       decoration: BoxDecoration(
+  //         color: const Color(0xFFF8FAFC),
+  //         borderRadius: BorderRadius.circular(8),
+  //         border: Border.all(color: const Color(0xFFE2E8F0)),
+  //       ),
+  //       child: Column(
+  //         children: [
+  //           Icon(Icons.receipt_long, size: 48, color: Colors.grey[400]),
+  //           const SizedBox(height: 16),
+  //           const Text(
+  //             'No payment schedule found',
+  //             style: TextStyle(
+  //               fontSize: 18,
+  //               fontWeight: FontWeight.w500,
+  //               color: Color(0xFF374151),
+  //             ),
+  //           ),
+  //           const SizedBox(height: 8),
+  //           const Text(
+  //             'Select a loan and click Search to view payment schedule',
+  //             style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+  //             textAlign: TextAlign.center,
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   }
+  //
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.start,
+  //     children: [
+  //       const Text(
+  //         'Payment Schedule Report',
+  //         style: TextStyle(
+  //           fontSize: 20,
+  //           fontWeight: FontWeight.w500,
+  //           color: Color(0xFF374151),
+  //         ),
+  //       ),
+  //       const SizedBox(height: 12),
+  //
+  //       // Table Header
+  //       Container(
+  //         height: 57,
+  //         decoration: BoxDecoration(
+  //           color: const Color(0xFFF8FAFC),
+  //           borderRadius: BorderRadius.circular(8),
+  //         ),
+  //         child: Row(
+  //           children: [
+  //             // Success Payment Checkbox
+  //             SizedBox(
+  //               width: 80,
+  //               child: Center(
+  //                 child: Column(
+  //                   mainAxisAlignment: MainAxisAlignment.center,
+  //                   children: [
+  //                     Text(
+  //                       'Paid',
+  //                       style: TextStyle(
+  //                         fontSize: 14,
+  //                         fontWeight: FontWeight.w600,
+  //                         color: Colors.green[700],
+  //                       ),
+  //                     ),
+  //                     const Text(
+  //                       '(Full Amount)',
+  //                       style: TextStyle(
+  //                         fontSize: 10,
+  //                         fontWeight: FontWeight.w500,
+  //                         color: Colors.green,
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ),
+  //
+  //             // Unpaid Checkbox
+  //             SizedBox(
+  //               width: 80,
+  //               child: Center(
+  //                 child: Column(
+  //                   mainAxisAlignment: MainAxisAlignment.center,
+  //                   children: [
+  //                     Text(
+  //                       'Unpaid',
+  //                       style: TextStyle(
+  //                         fontSize: 14,
+  //                         fontWeight: FontWeight.w600,
+  //                         color: Colors.red[700],
+  //                       ),
+  //                     ),
+  //                     const Text(
+  //                       '(Penalty Only)',
+  //                       style: TextStyle(
+  //                         fontSize: 10,
+  //                         fontWeight: FontWeight.w500,
+  //                         color: Colors.red,
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ),
+  //
+  //             // Due No
+  //             Expanded(
+  //               flex: 1,
+  //               child: Center(
+  //                 child: Text(
+  //                   'Due No',
+  //                   style: TextStyle(
+  //                     fontSize: 14,
+  //                     fontWeight: FontWeight.w600,
+  //                     color: Colors.grey[700],
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //
+  //             // Due Date
+  //             Expanded(
+  //               flex: 2,
+  //               child: Center(
+  //                 child: Text(
+  //                   'Due Date',
+  //                   style: TextStyle(
+  //                     fontSize: 14,
+  //                     fontWeight: FontWeight.w600,
+  //                     color: Colors.grey[700],
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //
+  //             // Due Amount
+  //             Expanded(
+  //               flex: 2,
+  //               child: Center(
+  //                 child: Text(
+  //                   'Due Amount',
+  //                   style: TextStyle(
+  //                     fontSize: 14,
+  //                     fontWeight: FontWeight.w600,
+  //                     color: Colors.grey[700],
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //
+  //             // Penalty Amount
+  //             Expanded(
+  //               flex: 2,
+  //               child: Center(
+  //                 child: Column(
+  //                   mainAxisAlignment: MainAxisAlignment.center,
+  //                   children: [
+  //                     Text(
+  //                       'Penalty',
+  //                       style: TextStyle(
+  //                         fontSize: 14,
+  //                         fontWeight: FontWeight.w600,
+  //                         color: Colors.grey[700],
+  //                       ),
+  //                     ),
+  //                     Text(
+  //                       '(Fixed Amount)',
+  //                       style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ),
+  //
+  //             // Status
+  //             Expanded(
+  //               flex: 1,
+  //               child: Center(
+  //                 child: Text(
+  //                   'Status',
+  //                   style: TextStyle(
+  //                     fontSize: 14,
+  //                     fontWeight: FontWeight.w600,
+  //                     color: Colors.grey[700],
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //
+  //       const SizedBox(height: 8),
+  //
+  //       // Table Rows
+  //       ListView.separated(
+  //         shrinkWrap: true,
+  //         physics: const NeverScrollableScrollPhysics(),
+  //         itemCount: _pendingPayments.length,
+  //         separatorBuilder: (context, index) => const SizedBox(height: 4),
+  //         itemBuilder: (context, index) {
+  //           final payment = _pendingPayments[index];
+  //           final selectedPayment = _selectedPayments[index];
+  //           final dueDate = payment['duedate']?.toString() ?? '';
+  //           final formattedDate = dueDate.isNotEmpty
+  //               ? DateFormat('dd/MM/yyyy').format(DateTime.parse(dueDate))
+  //               : '';
+  //
+  //           final isOverdue = payment['isOverdue'] ?? false;
+  //           final penaltyAmount = payment['calculated_penalty'] ?? 0.0;
+  //
+  //           return Container(
+  //             height: 57,
+  //             decoration: BoxDecoration(
+  //               color: Colors.white,
+  //               borderRadius: BorderRadius.circular(8),
+  //               border: Border.all(
+  //                 color: isOverdue
+  //                     ? Colors.red.withOpacity(0.3)
+  //                     : const Color(0xFFE2E8F0),
+  //               ),
+  //             ),
+  //             child: Row(
+  //               children: [
+  //                 // Success Payment Checkbox
+  //                 SizedBox(
+  //                   width: 80,
+  //                   child: Center(
+  //                     child: Tooltip(
+  //                       message: 'Mark as Paid (Full amount, no penalty)',
+  //                       child: Checkbox(
+  //                         value: selectedPayment['selected'],
+  //                         onChanged: (value) {
+  //                           _togglePaymentSelection(index, 'success');
+  //                         },
+  //                         activeColor: Colors.green,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ),
+  //
+  //                 // Unpaid Checkbox
+  //                 SizedBox(
+  //                   width: 80,
+  //                   child: Center(
+  //                     child: Tooltip(
+  //                       message:
+  //                           'Mark as Unpaid (Collect penalty only if overdue, due amount moves to end)',
+  //                       child: Checkbox(
+  //                         value: selectedPayment['unpaid'],
+  //                         onChanged: (value) {
+  //                           _togglePaymentSelection(index, 'unpaid');
+  //                         },
+  //                         activeColor: Colors.red,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ),
+  //
+  //                 // Due No
+  //                 Expanded(
+  //                   flex: 1,
+  //                   child: Center(
+  //                     child: Text(
+  //                       payment['dueno']?.toString() ?? '',
+  //                       style: TextStyle(
+  //                         fontSize: 16,
+  //                         fontWeight: FontWeight.w500,
+  //                         color: isOverdue
+  //                             ? Colors.red
+  //                             : const Color(0xFF374151),
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ),
+  //
+  //                 // Due Date
+  //                 Expanded(
+  //                   flex: 2,
+  //                   child: Center(
+  //                     child: Column(
+  //                       mainAxisAlignment: MainAxisAlignment.center,
+  //                       children: [
+  //                         Text(
+  //                           formattedDate,
+  //                           style: TextStyle(
+  //                             fontSize: 14,
+  //                             color: isOverdue
+  //                                 ? Colors.red
+  //                                 : const Color(0xFF374151),
+  //                           ),
+  //                         ),
+  //                         if (isOverdue)
+  //                           const Text(
+  //                             '(Overdue)',
+  //                             style: TextStyle(fontSize: 10, color: Colors.red),
+  //                           ),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                 ),
+  //
+  //                 // Due Amount
+  //                 Expanded(
+  //                   flex: 2,
+  //                   child: Center(
+  //                     child: Text(
+  //                       '₹${double.parse(payment['dueamount']?.toString() ?? '0').toStringAsFixed(2)}',
+  //                       style: TextStyle(
+  //                         fontSize: 14,
+  //                         fontWeight: FontWeight.w500,
+  //                         color: isOverdue
+  //                             ? Colors.red
+  //                             : const Color(0xFF374151),
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ),
+  //
+  //                 // Penalty Amount
+  //                 Expanded(
+  //                   flex: 2,
+  //                   child: Center(
+  //                     child: Column(
+  //                       mainAxisAlignment: MainAxisAlignment.center,
+  //                       children: [
+  //                         Text(
+  //                           '₹${penaltyAmount.toStringAsFixed(2)}',
+  //                           style: TextStyle(
+  //                             fontSize: 14,
+  //                             fontWeight: FontWeight.w500,
+  //                             color: isOverdue
+  //                                 ? Colors.red
+  //                                 : const Color(0xFF374151),
+  //                           ),
+  //                         ),
+  //                         if (isOverdue && penaltyAmount > 0)
+  //                           Text(
+  //                             'Fixed: ₹$_fixedPenaltyAmount',
+  //                             style: const TextStyle(
+  //                               fontSize: 10,
+  //                               color: Colors.grey,
+  //                             ),
+  //                           ),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                 ),
+  //
+  //                 // Status
+  //                 Expanded(
+  //                   flex: 1,
+  //                   child: Center(
+  //                     child: Container(
+  //                       padding: const EdgeInsets.symmetric(
+  //                         horizontal: 12,
+  //                         vertical: 4,
+  //                       ),
+  //                       decoration: BoxDecoration(
+  //                         color: isOverdue
+  //                             ? Colors.red.withOpacity(0.1)
+  //                             : Colors.orange.withOpacity(0.1),
+  //                         borderRadius: BorderRadius.circular(20),
+  //                       ),
+  //                       child: Column(
+  //                         mainAxisAlignment: MainAxisAlignment.center,
+  //                         children: [
+  //                           Text(
+  //                             isOverdue ? 'Overdue' : 'Pending',
+  //                             style: TextStyle(
+  //                               fontSize: 12,
+  //                               fontWeight: FontWeight.w500,
+  //                               color: isOverdue ? Colors.red : Colors.orange,
+  //                             ),
+  //                           ),
+  //                           if (selectedPayment['selected'] == true)
+  //                             const Text(
+  //                               'Paid: Full',
+  //                               style: TextStyle(
+  //                                 fontSize: 10,
+  //                                 color: Colors.green,
+  //                                 fontWeight: FontWeight.bold,
+  //                               ),
+  //                             ),
+  //                           if (selectedPayment['unpaid'] == true)
+  //                             Text(
+  //                               selectedPayment['penaltyamount'] > 0
+  //                                   ? 'Unpaid: Penalty'
+  //                                   : 'Unpaid: No Penalty',
+  //                               style: TextStyle(
+  //                                 fontSize: 10,
+  //                                 color: selectedPayment['penaltyamount'] > 0
+  //                                     ? Colors.red
+  //                                     : Colors.orange,
+  //                                 fontWeight: FontWeight.bold,
+  //                               ),
+  //                             ),
+  //                         ],
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           );
+  //         },
+  //       ),
+  //
+  //       // Summary Section
+  //       const SizedBox(height: 20),
+  //       Container(
+  //         padding: const EdgeInsets.all(16),
+  //         decoration: BoxDecoration(
+  //           color: const Color(0xFFF8FAFC),
+  //           borderRadius: BorderRadius.circular(8),
+  //           border: Border.all(color: const Color(0xFFE2E8F0)),
+  //         ),
+  //         child: Column(
+  //           children: [
+  //             // Penalty Info
+  //             Container(
+  //               padding: const EdgeInsets.all(12),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.yellow[50],
+  //                 borderRadius: BorderRadius.circular(8),
+  //                 border: Border.all(color: Colors.yellow),
+  //               ),
+  //               child: Row(
+  //                 mainAxisAlignment: MainAxisAlignment.center,
+  //                 children: [
+  //                   const Icon(
+  //                     Icons.info_outline,
+  //                     color: Colors.orange,
+  //                     size: 16,
+  //                   ),
+  //                   const SizedBox(width: 8),
+  //                   const Text(
+  //                     'Fixed Penalty Amount: ',
+  //                     style: TextStyle(
+  //                       fontSize: 14,
+  //                       fontWeight: FontWeight.w500,
+  //                       color: Colors.orange,
+  //                     ),
+  //                   ),
+  //                   Text(
+  //                     '₹$_fixedPenaltyAmount',
+  //                     style: const TextStyle(
+  //                       fontSize: 14,
+  //                       fontWeight: FontWeight.bold,
+  //                       color: Colors.orange,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //             const SizedBox(height: 16),
+  //
+  //             // Totals
+  //             Row(
+  //               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //               children: [
+  //                 Column(
+  //                   crossAxisAlignment: CrossAxisAlignment.start,
+  //                   children: [
+  //                     Text(
+  //                       'Total Payment:',
+  //                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+  //                     ),
+  //                     Text(
+  //                       '₹${_totalSelectedAmount.toStringAsFixed(2)}',
+  //                       style: const TextStyle(
+  //                         fontSize: 18,
+  //                         fontWeight: FontWeight.bold,
+  //                         color: Colors.green,
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //                 Column(
+  //                   crossAxisAlignment: CrossAxisAlignment.center,
+  //                   children: [
+  //                     Text(
+  //                       'Total Penalty:',
+  //                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+  //                     ),
+  //                     Text(
+  //                       '₹${_totalSelectedPenalty.toStringAsFixed(2)}',
+  //                       style: const TextStyle(
+  //                         fontSize: 18,
+  //                         fontWeight: FontWeight.bold,
+  //                         color: Colors.red,
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //                 Column(
+  //                   crossAxisAlignment: CrossAxisAlignment.end,
+  //                   children: [
+  //                     Text(
+  //                       'Grand Total:',
+  //                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+  //                     ),
+  //                     Text(
+  //                       '₹${(_totalSelectedAmount + _totalSelectedPenalty).toStringAsFixed(2)}',
+  //                       style: const TextStyle(
+  //                         fontSize: 20,
+  //                         fontWeight: FontWeight.bold,
+  //                         color: Color(0xFF1E293B),
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ],
+  //             ),
+  //
+  //             // Important Notes
+  //             const SizedBox(height: 16),
+  //             Container(
+  //               padding: const EdgeInsets.all(12),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.blue[50],
+  //                 borderRadius: BorderRadius.circular(8),
+  //                 border: Border.all(color: Colors.blue),
+  //               ),
+  //               child: Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   Row(
+  //                     children: [
+  //                       const Icon(
+  //                         Icons.lightbulb_outline,
+  //                         color: Colors.blue,
+  //                         size: 16,
+  //                       ),
+  //                       const SizedBox(width: 8),
+  //                       const Text(
+  //                         'Important Notes:',
+  //                         style: TextStyle(
+  //                           fontSize: 14,
+  //                           fontWeight: FontWeight.w500,
+  //                           color: Colors.blue,
+  //                         ),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                   const SizedBox(height: 8),
+  //                   const Text(
+  //                     '• Paid (✓): Full due amount stored in paidamount column, NO penalty even if overdue',
+  //                     style: TextStyle(fontSize: 12, color: Colors.blue),
+  //                   ),
+  //                   Text(
+  //                     '• Unpaid (✓): If overdue, fixed penalty (₹$_fixedPenaltyAmount) stored in penaltypaid, due amount moves to end',
+  //                     style: const TextStyle(fontSize: 12, color: Colors.blue),
+  //                   ),
+  //                   const Text(
+  //                     '• Unpaid (✓): If NOT overdue, no penalty, payment remains pending',
+  //                     style: TextStyle(fontSize: 12, color: Colors.blue),
+  //                   ),
+  //                   const Text(
+  //                     '• Payment amounts stored in: paidamount (for paid) and penaltypaid (for penalty)',
+  //                     style: TextStyle(fontSize: 12, color: Colors.blue),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
   Widget _buildPaymentScheduleTable() {
     if (_pendingPayments.isEmpty) {
       return Container(
@@ -1035,7 +1650,11 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
         ),
         child: Column(
           children: [
-            Icon(Icons.receipt_long, size: 48, color: Colors.grey[400]),
+            Icon(
+              Icons.receipt_long,
+              size: 48,
+              color: Colors.grey[400],
+            ),
             const SizedBox(height: 16),
             const Text(
               'No payment schedule found',
@@ -1048,12 +1667,40 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
             const SizedBox(height: 8),
             const Text(
               'Select a loan and click Search to view payment schedule',
-              style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF64748B),
+              ),
               textAlign: TextAlign.center,
             ),
           ],
         ),
       );
+    }
+
+    // Calculate next weekday for unpaid EMI
+    String nextWeekday = '';
+    if (_pendingPayments.isNotEmpty) {
+      try {
+        // Get the last due date from pending payments
+        DateTime? lastDueDate;
+        for (var payment in _pendingPayments.reversed) {
+          if (payment['duedate'] != null) {
+            lastDueDate = DateTime.parse(payment['duedate']);
+            break;
+          }
+        }
+
+        // If no due date found, use current date
+        lastDueDate ??= DateTime.now();
+
+        // Calculate next weekday (7 days from last due date)
+        DateTime nextWeekdayDate = lastDueDate.add(const Duration(days: 7));
+        nextWeekday = DateFormat('dd/MM/yyyy').format(nextWeekdayDate);
+      } catch (e) {
+        print("Error calculating next weekday: $e");
+        nextWeekday = '';
+      }
     }
 
     return Column(
@@ -1196,7 +1843,10 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                       ),
                       Text(
                         '(Fixed Amount)',
-                        style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[700],
+                        ),
                       ),
                     ],
                   ),
@@ -1246,9 +1896,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isOverdue
-                      ? Colors.red.withOpacity(0.3)
-                      : const Color(0xFFE2E8F0),
+                  color: isOverdue ? Colors.red.withOpacity(0.3) : const Color(0xFFE2E8F0),
                 ),
               ),
               child: Row(
@@ -1275,8 +1923,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                     width: 80,
                     child: Center(
                       child: Tooltip(
-                        message:
-                            'Mark as Unpaid (Collect penalty only if overdue, due amount moves to end)',
+                        message: 'Mark as Unpaid (Collect penalty only if overdue, due amount moves to next weekday: $nextWeekday)',
                         child: Checkbox(
                           value: selectedPayment['unpaid'],
                           onChanged: (value) {
@@ -1297,9 +1944,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: isOverdue
-                              ? Colors.red
-                              : const Color(0xFF374151),
+                          color: isOverdue ? Colors.red : const Color(0xFF374151),
                         ),
                       ),
                     ),
@@ -1316,15 +1961,16 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                             formattedDate,
                             style: TextStyle(
                               fontSize: 14,
-                              color: isOverdue
-                                  ? Colors.red
-                                  : const Color(0xFF374151),
+                              color: isOverdue ? Colors.red : const Color(0xFF374151),
                             ),
                           ),
                           if (isOverdue)
                             const Text(
                               '(Overdue)',
-                              style: TextStyle(fontSize: 10, color: Colors.red),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.red,
+                              ),
                             ),
                         ],
                       ),
@@ -1340,9 +1986,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: isOverdue
-                              ? Colors.red
-                              : const Color(0xFF374151),
+                          color: isOverdue ? Colors.red : const Color(0xFF374151),
                         ),
                       ),
                     ),
@@ -1360,9 +2004,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: isOverdue
-                                  ? Colors.red
-                                  : const Color(0xFF374151),
+                              color: isOverdue ? Colors.red : const Color(0xFF374151),
                             ),
                           ),
                           if (isOverdue && penaltyAmount > 0)
@@ -1420,9 +2062,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                                     : 'Unpaid: No Penalty',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: selectedPayment['penaltyamount'] > 0
-                                      ? Colors.red
-                                      : Colors.orange,
+                                  color: selectedPayment['penaltyamount'] > 0 ? Colors.red : Colors.orange,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -1459,11 +2099,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.info_outline,
-                      color: Colors.orange,
-                      size: 16,
-                    ),
+                    const Icon(Icons.info_outline, color: Colors.orange, size: 16),
                     const SizedBox(width: 8),
                     const Text(
                       'Fixed Penalty Amount: ',
@@ -1486,6 +2122,49 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Next Weekday Info for Unpaid EMI
+              if (nextWeekday.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.purple[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.purple),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.calendar_today, color: Colors.purple, size: 16),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'New Unpaid EMI Date: ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.purple,
+                        ),
+                      ),
+                      Text(
+                        nextWeekday,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '(Next Weekday)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Totals
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1495,7 +2174,10 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                     children: [
                       Text(
                         'Total Payment:',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
                       ),
                       Text(
                         '₹${_totalSelectedAmount.toStringAsFixed(2)}',
@@ -1512,7 +2194,10 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                     children: [
                       Text(
                         'Total Penalty:',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
                       ),
                       Text(
                         '₹${_totalSelectedPenalty.toStringAsFixed(2)}',
@@ -1529,7 +2214,10 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                     children: [
                       Text(
                         'Grand Total:',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
                       ),
                       Text(
                         '₹${(_totalSelectedAmount + _totalSelectedPenalty).toStringAsFixed(2)}',
@@ -1558,11 +2246,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(
-                          Icons.lightbulb_outline,
-                          color: Colors.blue,
-                          size: 16,
-                        ),
+                        const Icon(Icons.lightbulb_outline, color: Colors.blue, size: 16),
                         const SizedBox(width: 8),
                         const Text(
                           'Important Notes:',
@@ -1577,30 +2261,77 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                     const SizedBox(height: 8),
                     const Text(
                       '• Paid (✓): Full due amount stored in paidamount column, NO penalty even if overdue',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                      ),
                     ),
                     Text(
-                      '• Unpaid (✓): If overdue, fixed penalty (₹$_fixedPenaltyAmount) stored in penaltypaid, due amount moves to end',
-                      style: const TextStyle(fontSize: 12, color: Colors.blue),
+                      '• Unpaid (✓): If overdue, collects fixed penalty (₹$_fixedPenaltyAmount), due amount moves to next weekday',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                      ),
                     ),
+                    if (nextWeekday.isNotEmpty)
+                      Text(
+                        '• Unpaid EMI will be scheduled for: $nextWeekday',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     const Text(
                       '• Unpaid (✓): If NOT overdue, no penalty, payment remains pending',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                      ),
                     ),
                     const Text(
                       '• Payment amounts stored in: paidamount (for paid) and penaltypaid (for penalty)',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                      ),
                     ),
                   ],
                 ),
               ),
+
+              // Unpaid Warning (if any unpaid selected but not overdue)
+              if (_selectedPayments.any((p) => p['unpaid'] == true && p['penaltyamount'] == 0))
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(top: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning, color: Colors.orange, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Note: Some selected unpaid payments are not overdue and will have no penalty.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
       ],
     );
   }
-
   Widget _buildActionButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,

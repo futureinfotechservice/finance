@@ -40,27 +40,44 @@ try {
         $totalCollection = 0;
         $totalPenalty = 0;
         $lastDueno = 0;
+        $lastDueDate = null;
         
-        // Get loan details for fixed penalty amount
-        $loanSql = "SELECT lt.penaltyamount as fixed_penalty_amount 
+        // Get loan details for fixed penalty amount and loan frequency
+        $loanSql = "SELECT 
+                   lt.penaltyamount as fixed_penalty_amount
                    FROM loanmaster l
                    LEFT JOIN loantypemaster lt ON l.loantypeid = lt.id
                    WHERE l.id = '$loanid' AND l.companyid = '$companyid'";
         $loanResult = mysqli_query($conn, $loanSql);
         $loanData = mysqli_fetch_assoc($loanResult);
         $fixedPenalty = (float)$loanData['fixed_penalty_amount'];
+        // $loanFrequency = $loanData['loanfrequency'] ?? 'Weekly'; // Default to Weekly
+        $loanFrequency =  'Weekly'; // Default to Weekly
         
-        // Get max due number for the loan
-        $maxDueSql = "SELECT MAX(dueno) as max_dueno FROM loanschedule 
+        // Get max due number and last due date for the loan
+        $maxDueSql = "SELECT MAX(dueno) as max_dueno, MAX(duedate) as last_duedate 
+                     FROM loanschedule 
                      WHERE loanid = '$loanid' AND companyid = '$companyid'";
         $maxDueResult = mysqli_query($conn, $maxDueSql);
         $maxDueData = mysqli_fetch_assoc($maxDueResult);
         $lastDueno = (int)$maxDueData['max_dueno'];
+        $lastDueDate = $maxDueData['last_duedate'];
+        
+        // If no last due date, use current date
+        if (!$lastDueDate) {
+            $lastDueDate = $collectiondate;
+        }
+        
+        // Function to calculate next weekday (weekly)
+        function getNextWeekday($date) {
+            return date('Y-m-d', strtotime($date . ' +7 days'));
+        }
         
         // Process each payment
         foreach ($paymentdata as $payment) {
             $dueno = mysqli_real_escape_string($conn, $payment['dueno']);
             $dueamount = mysqli_real_escape_string($conn, $payment['dueamount']);
+            $paidamount = mysqli_real_escape_string($conn, $payment['paidamount'] ?? '0');
             $penaltyamount = mysqli_real_escape_string($conn, $payment['penaltyamount']);
             
             // Get payment details
@@ -82,12 +99,11 @@ try {
                 
                 // If paid (even if overdue), NO PENALTY charged
                 $actualPenalty = 0;
-                $paidAmount = $dueamount; // Store the paid amount
                 
                 // Update schedule as Paid with paidamount
                 $updateSql = "UPDATE loanschedule 
                              SET status = 'Paid', 
-                                 paidamount = '$paidAmount', 
+                                 paidamount = '$paidamount',  
                                  penaltypaid = '$actualPenalty',
                                  collectiondate = '$collectiondate',
                                  paymentmode = '$paymentmode',
@@ -100,7 +116,7 @@ try {
                     throw new Exception("Failed to update schedule: " . mysqli_error($conn));
                 }
                 
-                $totalCollection += $dueamount;
+                $totalCollection += $paidamount;
                 // No penalty for success payments
                 
             } else if (isset($payment['unpaid']) && $payment['unpaid'] == true) {
@@ -114,17 +130,15 @@ try {
                 
                 // Charge fixed penalty ONLY if overdue
                 $actualPenalty = $isOverdue ? $fixedPenalty : 0;
-                $paidAmount = 0; // No amount paid for unpaid
                 
                 if ($isOverdue) {
+                    // Calculate next weekday from last due date
+                    $newDueDate = getNextWeekday($lastDueDate);
+                    
                     // Create a new schedule entry at the end for the unpaid amount
                     $newDueno = $lastDueno + 1;
                     
-                    // Calculate new due date (next week from original due date)
-                    $originalDueDate = $paymentDetails['duedate'];
-                    $newDueDate = date('Y-m-d', strtotime($originalDueDate . ' +7 days'));
-                    
-                    // Insert new schedule entry for unpaid amount
+                    // Insert new schedule entry for unpaid amount with next weekday date
                     $insertScheduleSql = "INSERT INTO loanschedule 
                                          (loanid, companyid, dueno, duedate, dueamount, status) 
                                          VALUES ('$loanid', '$companyid', '$newDueno', 
@@ -134,22 +148,34 @@ try {
                         throw new Exception("Failed to create new schedule: " . mysqli_error($conn));
                     }
                     
-                    // Update last due number
+                    // Update last due number and date for next iteration
                     $lastDueno = $newDueno;
+                    $lastDueDate = $newDueDate;
+                    
+                    // Update current schedule as Unpaid with penalty
+                    $updateSql = "UPDATE loanschedule 
+                                 SET status = 'Unpaid', 
+                                     paidamount = '0',  
+                                     penaltypaid = '$actualPenalty',
+                                     collectiondate = '$collectiondate',
+                                     paymentmode = '$paymentmode',
+                                     collectedby = '$collectedby'
+                                 WHERE loanid = '$loanid' 
+                                 AND companyid = '$companyid' 
+                                 AND dueno = '$dueno'";
+                } else {
+                    // If not overdue, just mark as pending with no penalty
+                    $updateSql = "UPDATE loanschedule 
+                                 SET status = 'Pending', 
+                                     paidamount = '0',
+                                     penaltypaid = '0',
+                                     collectiondate = '$collectiondate',
+                                     paymentmode = '$paymentmode',
+                                     collectedby = '$collectedby'
+                                 WHERE loanid = '$loanid' 
+                                 AND companyid = '$companyid' 
+                                 AND dueno = '$dueno'";
                 }
-                
-                // Update current schedule
-                $status = $isOverdue ? 'Unpaid' : 'Pending';
-                $updateSql = "UPDATE loanschedule 
-                             SET status = '$status', 
-                                 paidamount = '$paidAmount', 
-                                 penaltypaid = '$actualPenalty',
-                                 collectiondate = '$collectiondate',
-                                 paymentmode = '$paymentmode',
-                                 collectedby = '$collectedby'
-                             WHERE loanid = '$loanid' 
-                             AND companyid = '$companyid' 
-                             AND dueno = '$dueno'";
                 
                 if (!mysqli_query($conn, $updateSql)) {
                     throw new Exception("Failed to update schedule: " . mysqli_error($conn));
