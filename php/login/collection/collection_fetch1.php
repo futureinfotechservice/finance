@@ -79,6 +79,7 @@ try {
                         status IN ('Pending', 'Partially Paid', 'Partially Paid Penalty', 'Unpaid')
                         OR (status = 'Paid' AND due_received < dueamount)
                         OR (status = 'Penalty Paid' AND penalty_received < '$fixedPenalty')
+						OR (status = 'Partially Paid Penalty' AND penalty_received < '$fixedPenalty')  
                     )
                     ORDER BY dueno ASC";
     

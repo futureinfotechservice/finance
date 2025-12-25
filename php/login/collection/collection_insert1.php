@@ -71,6 +71,9 @@ try {
             return date('Y-m-d', strtotime($date . ' +7 days'));
         }
         
+        // Track which duenos are being collected (for collectionmaster_details)
+        $collectedDuenos = [];
+        
         // Process each payment
         foreach ($paymentdata as $payment) {
             $dueno = mysqli_real_escape_string($conn, $payment['dueno']);
@@ -80,7 +83,7 @@ try {
             $due_received = (float)mysqli_real_escape_string($conn, $payment['due_received'] ?? '0');
             $penalty_received = (float)mysqli_real_escape_string($conn, $payment['penalty_received'] ?? '0');
             
-            // Get payment details
+            // Get payment details including already received penalty and current status
             $paymentSql = "SELECT * FROM loanschedule 
                           WHERE loanid = '$loanid' 
                           AND companyid = '$companyid' 
@@ -88,9 +91,18 @@ try {
             $paymentResult = mysqli_query($conn, $paymentSql);
             $paymentDetails = mysqli_fetch_assoc($paymentResult);
             
+            // Get current status and received amounts
+            $currentStatus = $paymentDetails['status'] ?? 'Pending';
+            $alreadyReceivedPenalty = (float)($paymentDetails['penalty_received'] ?? 0);
+            $alreadyReceivedDue = (float)($paymentDetails['due_received'] ?? 0);
+            
             if (isset($payment['selected']) && $payment['selected'] == true) {
                 // SUCCESS PAYMENT (Paid with due amount)
-                // Rule 7: If due amount paid (partial or full), do not collect penalty
+                
+                // IMPORTANT: Check if ANY penalty has been paid already (partial or full)
+                if ($alreadyReceivedPenalty > 0) {
+                    throw new Exception("Cannot collect due amount on EMI $dueno. Penalty (₹$alreadyReceivedPenalty) has already been paid. You can only collect remaining penalty.");
+                }
                 
                 // Check if payment is overdue
                 $isOverdue = false;
@@ -128,16 +140,23 @@ try {
                 }
                 
                 $totalCollection += $due_received;
+                $collectedDuenos[] = [
+                    'dueno' => $dueno,
+                    'due_received' => $due_received,
+                    'penalty_received' => $penalty_received
+                ];
                 
             } else if (isset($payment['unpaid']) && $payment['unpaid'] == true) {
                 // UNPAID (Only penalty collected, due amount jumps to last EMI)
-                // Rule 1: Unpaid EMI due amount jumps to last EMI
-                // Rule 2: Only collect penalty, no due amount
                 
                 // Check if payment is overdue
                 $isOverdue = false;
                 if ($paymentDetails['duedate'] && $collectiondate > $paymentDetails['duedate']) {
                     $isOverdue = true;
+                }
+                
+                if (!$isOverdue && $penalty_received > 0) {
+                    throw new Exception("Cannot collect penalty on EMI $dueno. It is not overdue.");
                 }
                 
                 // Use editable penalty_received amount
@@ -150,27 +169,40 @@ try {
                 // Check if penalty is fully received
                 $isPenaltyFullyPaid = ($newPenaltyReceived >= $fixedPenalty);
                 
-                // Rule 1: If penalty received (partial or full), move due amount to last EMI
+                // IMPORTANT: Only move due amount to new EMI if this is the FIRST penalty payment
+                // If already partially paid penalty (status = 'Partially Paid Penalty'), don't create new EMI
+                $shouldCreateNewEMI = false;
+                
                 if ($penalty_received > 0) {
-                    // Calculate next weekday from last due date
-                    $newDueDate = getNextWeekday($lastDueDate);
-                    
-                    // Create a new schedule entry at the end for the unpaid amount
-                    $newDueno = $lastDueno + 1;
-                    
-                    // Insert new schedule entry for unpaid amount with next weekday date
-                    $insertScheduleSql = "INSERT INTO loanschedule 
-                                         (loanid, companyid, dueno, duedate, dueamount, status) 
-                                         VALUES ('$loanid', '$companyid', '$newDueno', 
-                                                 '$newDueDate', '$dueamount', 'Pending')";
-                    
-                    if (!mysqli_query($conn, $insertScheduleSql)) {
-                        throw new Exception("Failed to create new schedule: " . mysqli_error($conn));
+                    // Check current status - only create new EMI if NOT already 'Partially Paid Penalty'
+                    if ($currentStatus != 'Partially Paid Penalty' && $currentStatus != 'Penalty Paid') {
+                        // This is the FIRST penalty payment for this EMI
+                        $shouldCreateNewEMI = true;
+                        
+                        // Calculate next weekday from last due date
+                        $newDueDate = getNextWeekday($lastDueDate);
+                        
+                        // Create a new schedule entry at the end for the unpaid amount
+                        $newDueno = $lastDueno + 1;
+                        
+                        // Insert new schedule entry for unpaid amount with next weekday date
+                        $insertScheduleSql = "INSERT INTO loanschedule 
+                                             (loanid, companyid, dueno, duedate, dueamount, status) 
+                                             VALUES ('$loanid', '$companyid', '$newDueno', 
+                                                     '$newDueDate', '$dueamount', 'Pending')";
+                        
+                        if (!mysqli_query($conn, $insertScheduleSql)) {
+                            throw new Exception("Failed to create new schedule: " . mysqli_error($conn));
+                        }
+                        
+                        // Update last due number and date for next iteration
+                        $lastDueno = $newDueno;
+                        $lastDueDate = $newDueDate;
+                    } else {
+                        // Already partially paid penalty - just update the existing record
+                        $shouldCreateNewEMI = false;
+                        echo "DEBUG: EMI $dueno already has partial penalty payment. No new EMI created.\n";
                     }
-                    
-                    // Update last due number and date for next iteration
-                    $lastDueno = $newDueno;
-                    $lastDueDate = $newDueDate;
                 }
                 
                 // Update current schedule
@@ -200,6 +232,12 @@ try {
                 }
                 
                 $totalPenalty += $actualPenalty;
+                $collectedDuenos[] = [
+                    'dueno' => $dueno,
+                    'due_received' => 0,
+                    'penalty_received' => $penalty_received,
+                    'created_new_emi' => $shouldCreateNewEMI
+                ];
             }
         }
         
@@ -234,9 +272,11 @@ try {
         
         $insertCollectionSql = "INSERT INTO collectionmaster 
                                (collectionno, loanid, companyid, collectiondate, 
-                                totalamount, totalpenalty, paymentmode, collectedby) 
+                                totalamount, due_received_total, penalty_received_total, 
+                                totalpenalty, paymentmode, collectedby) 
                                VALUES ('$collectionNo', '$loanid', '$companyid', 
                                        '$collectiondate', '$totalCollection', 
+                                       '$totalCollection', '$totalPenalty',
                                        '$totalPenalty', '$paymentmode', '$collectedby')";
         
         if (!mysqli_query($conn, $insertCollectionSql)) {
@@ -244,6 +284,21 @@ try {
         }
         
         $collectionid = mysqli_insert_id($conn);
+        
+        // Insert collection details (for each dueno)
+        foreach ($collectedDuenos as $duenoData) {
+            $dueno = mysqli_real_escape_string($conn, $duenoData['dueno']);
+            $dueReceived = $duenoData['due_received'];
+            $penaltyReceived = $duenoData['penalty_received'];
+            
+            $insertDetailSql = "INSERT INTO collectionmaster_details 
+                               (collectionid, dueno, due_received, penalty_received) 
+                               VALUES ('$collectionid', '$dueno', '$dueReceived', '$penaltyReceived')";
+            
+            if (!mysqli_query($conn, $insertDetailSql)) {
+                throw new Exception("Failed to insert collection details: " . mysqli_error($conn));
+            }
+        }
         
         // Commit transaction
         mysqli_commit($conn);
