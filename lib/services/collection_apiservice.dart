@@ -11,7 +11,7 @@ class collectionapiservice{
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
 
-    var url = Uri.parse('$baseUrl/collection_fetch.php');
+    var url = Uri.parse('$baseUrl/collection_fetch1.php');
     try {
       var response = await http.post(
         url,
@@ -83,7 +83,7 @@ class collectionapiservice{
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/collection_insert.php');
+    var url = Uri.parse('$baseUrl/collection_insert1.php');
     try {
       var response = await http.post(
         url,
