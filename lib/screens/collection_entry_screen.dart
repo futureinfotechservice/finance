@@ -13,7 +13,7 @@ class CollectionEntryScreen extends StatefulWidget {
   State<CollectionEntryScreen> createState() => _CollectionEntryScreenState();
 }
 
-class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
+class _CollectionEntryScreenState extends State<CollectionEntryScreen> with AutomaticKeepAliveClientMixin  {
   final collectionapiservice _apiService = collectionapiservice();
 
   // Form controllers
@@ -60,12 +60,78 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
 
   final List<String> _paymentModes = ['Cash', 'Bank Transfer', 'Cheque', 'UPI'];
 
+  List<FocusNode> _dueReceivedFocusNodes = [];
+  List<FocusNode> _penaltyReceivedFocusNodes = [];
+  List<TextEditingController> _dueReceivedControllers = [];  // Add this
+  List<TextEditingController> _penaltyReceivedControllers = [];
+
   @override
   void initState() {
     super.initState();
     _selectedDate = DateTime.now();
     _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
     _initializeData();
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+  void _initializeFocusNodesAndControllers() {
+    // Clear existing focus nodes and controllers
+    for (var node in _dueReceivedFocusNodes) {
+      node.dispose();
+    }
+    for (var node in _penaltyReceivedFocusNodes) {
+      node.dispose();
+    }
+    for (var controller in _dueReceivedControllers) {
+      controller.dispose();
+    }
+    for (var controller in _penaltyReceivedControllers) {
+      controller.dispose();
+    }
+
+    // Initialize focus nodes and controllers for each payment
+    _dueReceivedFocusNodes = [];
+    _penaltyReceivedFocusNodes = [];
+    _dueReceivedControllers = [];
+    _penaltyReceivedControllers = [];
+
+    for (int i = 0; i < _selectedPayments.length; i++) {
+      _dueReceivedFocusNodes.add(FocusNode());
+      _penaltyReceivedFocusNodes.add(FocusNode());
+
+      // Initialize controllers with initial values
+      _dueReceivedControllers.add(TextEditingController(
+        text: _selectedPayments[i]['selected'] == true
+            ? (double.tryParse(_selectedPayments[i]['due_received']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)
+            : '0.00',
+      ));
+
+      _penaltyReceivedControllers.add(TextEditingController(
+        text: _selectedPayments[i]['unpaid'] == true
+            ? (double.tryParse(_selectedPayments[i]['penalty_received']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)
+            : '0.00',
+      ));
+    }
+  }
+
+
+  @override
+  void dispose() {
+    // Dispose all focus nodes and controllers
+    for (var node in _dueReceivedFocusNodes) {
+      node.dispose();
+    }
+    for (var node in _penaltyReceivedFocusNodes) {
+      node.dispose();
+    }
+    for (var controller in _dueReceivedControllers) {
+      controller.dispose();
+    }
+    for (var controller in _penaltyReceivedControllers) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _initializeData() async {
@@ -340,6 +406,8 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
             }
           }
           print("✅ Fully paid payments (excluded): $fullyPaidCount");
+          // Initialize focus nodes AFTER setting up _selectedPayments
+          _initializeFocusNodesAndControllers();
         });
       }
     } catch (e) {
@@ -532,14 +600,27 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
 
         if (newSuccessValue) {
           // Auto-fill due received with remaining due amount
-          _selectedPayments[index]['due_received'] = _selectedPayments[index]['dueamount'];
+          double dueAmount = double.tryParse(_selectedPayments[index]['dueamount'].toString()) ?? 0.0;
+          _selectedPayments[index]['due_received'] = dueAmount;
+
+          // Update controller
+          _dueReceivedControllers[index].text = dueAmount.toStringAsFixed(2);
+
           // Rule 7: Reset penalty received and amount
           _selectedPayments[index]['penalty_received'] = 0.0;
           _selectedPayments[index]['penaltyamount'] = 0.0;
+
+          // Update penalty controller
+          _penaltyReceivedControllers[index].text = '0.00';
         } else {
           // Reset values if unchecking
           _selectedPayments[index]['due_received'] = 0.0;
           _selectedPayments[index]['penalty_received'] = 0.0;
+
+          // Update controllers
+          _dueReceivedControllers[index].text = '0.00';
+          _penaltyReceivedControllers[index].text = '0.00';
+
           // Restore original penalty amount if overdue
           bool isOverdue = _pendingPayments[index]['isOverdue'] ?? false;
           if (isOverdue) {
@@ -556,13 +637,25 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
 
         if (newUnpaidValue) {
           // Auto-fill penalty received with remaining penalty
-          _selectedPayments[index]['penalty_received'] = _selectedPayments[index]['penaltyamount'];
+          double penaltyAmount = double.tryParse(_selectedPayments[index]['penaltyamount'].toString()) ?? 0.0;
+          _selectedPayments[index]['penalty_received'] = penaltyAmount;
+
+          // Update controller
+          _penaltyReceivedControllers[index].text = penaltyAmount.toStringAsFixed(2);
+
           // Rule 2: Reset due received
           _selectedPayments[index]['due_received'] = 0.0;
+
+          // Update due controller
+          _dueReceivedControllers[index].text = '0.00';
         } else {
           // Reset values if unchecking
           _selectedPayments[index]['due_received'] = 0.0;
           _selectedPayments[index]['penalty_received'] = 0.0;
+
+          // Update controllers
+          _dueReceivedControllers[index].text = '0.00';
+          _penaltyReceivedControllers[index].text = '0.00';
         }
       }
 
@@ -584,15 +677,23 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
+
+      // Reset to maximum allowed value
+      _dueReceivedControllers[index].text = dueAmount.toStringAsFixed(2);
+      _dueReceivedControllers[index].selection = TextSelection.fromPosition(
+        TextPosition(offset: _dueReceivedControllers[index].text.length),
+      );
       return;
     }
 
+    // Update the data model
     setState(() {
       _selectedPayments[index]['due_received'] = newValue;
     });
 
     _updateTotalsOnly();
   }
+
 
   void _onPenaltyReceivedChanged(int index, String value) {
     double newValue = double.tryParse(value) ?? 0.0;
@@ -607,15 +708,23 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
+
+      // Reset to maximum allowed value
+      _penaltyReceivedControllers[index].text = penaltyAmount.toStringAsFixed(2);
+      _penaltyReceivedControllers[index].selection = TextSelection.fromPosition(
+        TextPosition(offset: _penaltyReceivedControllers[index].text.length),
+      );
       return;
     }
 
+    // Update the data model
     setState(() {
       _selectedPayments[index]['penalty_received'] = newValue;
     });
 
     _updateTotalsOnly();
   }
+
 
   // Add a method to check if amounts are partially paid
 // Update the _getPaymentStatus method to show better status for partial penalty:
@@ -952,10 +1061,21 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
       _totalPenaltyReceived = 0.0;
     });
 
+    // Clear controllers
+    for (var controller in _dueReceivedControllers) {
+      controller.dispose();
+    }
+    for (var controller in _penaltyReceivedControllers) {
+      controller.dispose();
+    }
+    _dueReceivedControllers.clear();
+    _penaltyReceivedControllers.clear();
+
     // Regenerate collection number
     await _generateCollectionNo();
     print("🔄 Form reset");
   }
+
 
   String _formatAmount(dynamic amount) {
     try {
@@ -1833,11 +1953,8 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: TextField(
-                          controller: TextEditingController(
-                            text: selectedPayment['selected'] == true
-                                ? (double.tryParse(selectedPayment['due_received']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)
-                                : '0.00',
-                          ),
+                          focusNode: _dueReceivedFocusNodes[index],
+                          controller: _dueReceivedControllers[index],  // Use persistent controller
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
                             TextInputFormatter.withFunction(
@@ -1852,7 +1969,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                               },
                             ),
                           ],
-                          enabled: selectedPayment['selected'] == true && !hasPartialPenalty, // Disable if partial penalty paid
+                          enabled: selectedPayment['selected'] == true && !hasPartialPenalty,
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
@@ -1941,11 +2058,8 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: TextField(
-                          controller: TextEditingController(
-                            text: selectedPayment['unpaid'] == true && isUnpaidAllowed
-                                ? (double.tryParse(selectedPayment['penalty_received']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)
-                                : '0.00',
-                          ),
+                          focusNode: _penaltyReceivedFocusNodes[index],
+                          controller: _penaltyReceivedControllers[index],  // Use persistent controller
                           enabled: selectedPayment['unpaid'] == true && isUnpaidAllowed,
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
