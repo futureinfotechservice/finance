@@ -71,6 +71,49 @@ class collectionapiservice{
       }
     }
   }
+
+  Future<Map<String, dynamic>> fetchCollectionHistory({
+    required BuildContext context,
+    String? fromDate,
+    String? toDate,
+    String? searchQuery,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/collection_history_report.php');
+
+    Map<String, String> body = {'companyid': companyid};
+
+    if (fromDate != null && fromDate.isNotEmpty) {
+      body['fromdate'] = fromDate;
+    }
+    if (toDate != null && toDate.isNotEmpty) {
+      body['todate'] = toDate;
+    }
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      body['search'] = searchQuery;
+    }
+
+    try {
+      var response = await http.post(url, body: body);
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          return responseData;
+        } else {
+          throw Exception(responseData['message']);
+        }
+      } else {
+        throw Exception('Failed to load collection history: ${response.statusCode}');
+      }
+    } catch (e) {
+      print("Fetch Collection History Error: $e");
+      rethrow;
+    }
+  }
+
 // In the recordCollection method, ensure you're sending paidamount:
   Future<String> recordCollection({
     required BuildContext context,
