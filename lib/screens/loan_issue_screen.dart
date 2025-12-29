@@ -403,7 +403,7 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
 
       // Find first due date (next occurrence of target weekday)
       int daysToAdd = (targetWeekday - currentDate.weekday + 7) % 7;
-      if (daysToAdd == 0) daysToAdd = 7; // If same day, go to next week
+      // if (daysToAdd == 0) daysToAdd = 7; // If same day, go to next week
 
       DateTime firstDueDate = currentDate.add(Duration(days: daysToAdd));
       print("  • First Due Date: ${DateFormat('dd/MM/yyyy').format(firstDueDate)} (${DateFormat('EEEE').format(firstDueDate)})");

@@ -536,66 +536,139 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
   }
 
   void _togglePaymentSelection(int index, String type) {
-    // Check if partial penalty has been paid already
+    // Get the current payment status from the fetched data
+    final payment = _pendingPayments[index];
+    final currentStatus = payment['status']?.toString() ?? '';
+
+    // Get already received amounts
     double alreadyReceivedPenalty = double.tryParse(_selectedPayments[index]['already_received_penalty']?.toString() ?? '0') ?? 0.0;
+    double alreadyReceivedDue = double.tryParse(_selectedPayments[index]['already_received_due']?.toString() ?? '0') ?? 0.0;
 
-    // Rule: If partial penalty paid, don't allow due amount collection
-    if (type == 'success' && alreadyReceivedPenalty > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Cannot collect due amount. Partial penalty (₹${alreadyReceivedPenalty.toStringAsFixed(2)}) already paid. You can only collect remaining penalty.'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-    // Check if payment is already fully paid
-    bool isDueFullyPaid = _selectedPayments[index]['is_due_fully_paid'] ?? false;
-    bool isPenaltyFullyPaid = _selectedPayments[index]['is_penalty_fully_paid'] ?? false;
+    // Get current checkbox states
+    bool isCurrentlySelected = _selectedPayments[index]['selected'] ?? false;
+    bool isCurrentlyUnpaid = _selectedPayments[index]['unpaid'] ?? false;
 
-    if (type == 'success' && isDueFullyPaid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This payment is already fully paid'),
-          backgroundColor: Colors.blue,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
+    // Determine if this is a CHECK or UNCHECK operation
+    bool isCheckingPaid = (type == 'success' && !isCurrentlySelected);
+    bool isCheckingUnpaid = (type == 'unpaid' && !isCurrentlyUnpaid);
+    bool isUncheckingPaid = (type == 'success' && isCurrentlySelected);
+    bool isUncheckingUnpaid = (type == 'unpaid' && isCurrentlyUnpaid);
 
-    if (type == 'unpaid' && isPenaltyFullyPaid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Penalty for this payment is already fully paid'),
-          backgroundColor: Colors.blue,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
+    print("=== TOGGLE PAYMENT SELECTION ===");
+    print("EMI: ${payment['dueno']}");
+    print("Type: $type");
+    print("Current Status: $currentStatus");
+    print("Already Received Penalty: $alreadyReceivedPenalty");
+    print("Already Received Due: $alreadyReceivedDue");
+    print("Currently Selected: $isCurrentlySelected");
+    print("Currently Unpaid: $isCurrentlyUnpaid");
+    print("isCheckingPaid: $isCheckingPaid");
+    print("isCheckingUnpaid: $isCheckingUnpaid");
 
-    // Check if trying to toggle unpaid for non-overdue payment
-    if (type == 'unpaid') {
-      final isOverdue = _pendingPayments[index]['isOverdue'] ?? false;
-      if (!isOverdue) {
+    // VALIDATION: Only run validations when CHECKING (not when UNCHECKING)
+    if (isCheckingPaid || isCheckingUnpaid) {
+      // VALIDATION 1: Check if payment has "Partially Paid Penalty" status - DON'T allow Paid selection
+      if (type == 'success' && currentStatus == 'Partially Paid Penalty') {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unpaid option is only available for overdue payments'),
+          SnackBar(
+            content: Text('Cannot select Paid. EMI ${payment['dueno']} has "Partially Paid Penalty" status. You can only collect remaining penalty.'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
           ),
         );
         return;
       }
+
+      // VALIDATION 2: Check if any penalty has been paid already (even if not marked as Partially Paid Penalty)
+      if (type == 'success' && alreadyReceivedPenalty > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot select Paid on EMI ${payment['dueno']}. Partial penalty (₹${alreadyReceivedPenalty.toStringAsFixed(2)}) already paid. You can only collect remaining penalty.'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      // VALIDATION 3: Check if partial due amount has been paid already - DON'T allow Unpaid selection
+      if (type == 'unpaid' && alreadyReceivedDue > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot select Unpaid on EMI ${payment['dueno']}. Partial due amount (₹${alreadyReceivedDue.toStringAsFixed(2)}) already paid.'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      // VALIDATION 4: Check if payment is already marked as "Partially Paid" - don't allow Unpaid
+      if (type == 'unpaid' && currentStatus == 'Partially Paid') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot select Unpaid on EMI ${payment['dueno']}. This payment has "Partially Paid" status for due amount.'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      // VALIDATION 5: Check if payment is already fully paid
+      bool isDueFullyPaid = _selectedPayments[index]['is_due_fully_paid'] ?? false;
+      bool isPenaltyFullyPaid = _selectedPayments[index]['is_penalty_fully_paid'] ?? false;
+
+      if (type == 'success' && isDueFullyPaid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('EMI ${payment['dueno']} is already fully paid'),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      if (type == 'unpaid' && isPenaltyFullyPaid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Penalty for EMI ${payment['dueno']} is already fully paid'),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      // VALIDATION 6: Check if trying to check unpaid for non-overdue payment
+      if (type == 'unpaid') {
+        final isOverdue = _pendingPayments[index]['isOverdue'] ?? false;
+        if (!isOverdue) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unpaid option is only available for overdue payments'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
+      }
     }
 
+    // If all validations pass or we're UNCHECKING, proceed with toggle logic
     setState(() {
       if (type == 'success') {
-        // Rule 2: If selecting Paid, uncheck Unpaid
-        _selectedPayments[index]['unpaid'] = false;
-        bool newSuccessValue = !_selectedPayments[index]['selected'];
+        // If checking Paid, uncheck Unpaid first
+        if (isCheckingPaid && isCurrentlyUnpaid) {
+          _selectedPayments[index]['unpaid'] = false;
+          _selectedPayments[index]['penalty_received'] = 0.0;
+          _penaltyReceivedControllers[index].text = '0.00';
+        }
+
+        // Toggle the Paid checkbox
+        bool newSuccessValue = !isCurrentlySelected;
         _selectedPayments[index]['selected'] = newSuccessValue;
 
         if (newSuccessValue) {
@@ -630,9 +703,15 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
         }
 
       } else if (type == 'unpaid') {
-        // Rule 2: If selecting Unpaid, uncheck Paid
-        _selectedPayments[index]['selected'] = false;
-        bool newUnpaidValue = !_selectedPayments[index]['unpaid'];
+        // If checking Unpaid, uncheck Paid first
+        if (isCheckingUnpaid && isCurrentlySelected) {
+          _selectedPayments[index]['selected'] = false;
+          _selectedPayments[index]['due_received'] = 0.0;
+          _dueReceivedControllers[index].text = '0.00';
+        }
+
+        // Toggle the Unpaid checkbox
+        bool newUnpaidValue = !isCurrentlyUnpaid;
         _selectedPayments[index]['unpaid'] = newUnpaidValue;
 
         if (newUnpaidValue) {
@@ -662,6 +741,11 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
       // Update totals
       _updateTotalsOnly();
     });
+
+    print("✅ Toggled ${type == 'success' ? 'Paid' : 'Unpaid'} for EMI ${payment['dueno']}");
+    print("   New State - Selected: ${_selectedPayments[index]['selected']}, Unpaid: ${_selectedPayments[index]['unpaid']}");
+    print("   Due Received: ${_selectedPayments[index]['due_received']}");
+    print("   Penalty Received: ${_selectedPayments[index]['penalty_received']}");
   }
 
   void _onDueReceivedChanged(int index, String value) {
@@ -921,6 +1005,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
             'penalty_received': penaltyReceived.toString(), // Save in penalty_received column
             'selected': false,
             'unpaid': true,
+            'is_overdue': isOverdue,
           });
         }
       }
@@ -1814,7 +1899,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                       child: Tooltip(
                         message: 'Mark as Paid (Collect due amount only, no penalty)',
                         child: Checkbox(
-                          value: selectedPayment['selected'],
+                          value: selectedPayment['selected'] ?? false, // Make sure to handle null
                           onChanged: (value) {
                             _togglePaymentSelection(index, 'success');
                           },
@@ -1833,23 +1918,23 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                             ? 'Mark as Unpaid (Collect penalty only, due amount moves to new EMI at last)'
                             : 'Unpaid option only available for overdue payments',
                         child: AbsorbPointer(
-                          absorbing: !isUnpaidAllowed, // Disable interaction if not allowed
+                          absorbing: !isUnpaidAllowed,
                           child: Opacity(
-                            opacity: isUnpaidAllowed ? 1.0 : 0.5, // Visual feedback for disabled state
+                            opacity: isUnpaidAllowed ? 1.0 : 0.5,
                             child: Checkbox(
-                              value: selectedPayment['unpaid'],
+                              value: selectedPayment['unpaid'] ?? false, // Make sure to handle null
                               onChanged: isUnpaidAllowed
                                   ? (value) {
                                 _togglePaymentSelection(index, 'unpaid');
                               }
-                                  : null, // null disables the checkbox
+                                  : null,
                               activeColor: Colors.red,
                               fillColor: MaterialStateProperty.resolveWith<Color>(
                                     (Set<MaterialState> states) {
                                   if (!isUnpaidAllowed) {
-                                    return Colors.grey; // Grey color when disabled
+                                    return Colors.grey;
                                   }
-                                  return Colors.red; // Normal red when enabled
+                                  return Colors.red;
                                 },
                               ),
                             ),
@@ -2014,15 +2099,37 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            _formatAmount(penaltyAmount),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: isOverdue ? Colors.red : const Color(0xFF374151),
+                          // Requirement 2: Show penalty amount ONLY if unpaid is checked
+                          // (even if overdue, don't show unless Unpaid is checked)
+                          if (selectedPayment['unpaid'] == true)
+                            Text(
+                              _formatAmount(penaltyAmount),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: isOverdue ? Colors.red : const Color(0xFF374151),
+                              ),
+                            )
+                          else if (penaltyAmount > 0 && isOverdue)
+                          // If overdue but Unpaid not checked, show empty or show 0?
+                            const Text(
+                              '₹0.00',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            )
+                          else
+                            const Text(
+                              '-',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
                             ),
-                          ),
-                          if (penaltyAmount > 0 && alreadyReceivedPenalty > 0)
+
+                          // Additional info lines - only show if Unpaid is checked OR already has penalty payment
+                          if (selectedPayment['unpaid'] == true && penaltyAmount > 0 && alreadyReceivedPenalty > 0)
                             Text(
                               'Remaining: ${_formatAmount(penaltyAmount)}',
                               style: const TextStyle(
@@ -2030,7 +2137,8 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                                 color: Colors.orange,
                               ),
                             ),
-                          if (alreadyReceivedPenalty > 0)
+
+                          if (selectedPayment['unpaid'] == true && alreadyReceivedPenalty > 0)
                             Text(
                               'Already paid: ${_formatAmount(alreadyReceivedPenalty)}',
                               style: const TextStyle(
@@ -2038,7 +2146,8 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                                 color: Colors.green,
                               ),
                             ),
-                          if (isOverdue && penaltyAmount > 0)
+
+                          if (selectedPayment['unpaid'] == true && isOverdue && _fixedPenaltyAmount > 0)
                             Text(
                               'Fixed: ${_formatAmount(_fixedPenaltyAmount)}',
                               style: const TextStyle(
@@ -2548,13 +2657,14 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
             onPressed:
             _isLoading ||
                 _loanId == null ||
-                (_totalDueReceived == 0 && _totalPenaltyReceived == 0) // Rule 6: Check received amounts
+                // Allow if either due received > 0 OR unpaid is checked (even if penalty = 0)
+                !(_totalDueReceived > 0 || _selectedPayments.any((p) => p['unpaid'] == true))
                 ? null
                 : _recordCollection,
             style: ElevatedButton.styleFrom(
               backgroundColor:
               _loanId != null &&
-                  (_totalDueReceived > 0 || _totalPenaltyReceived > 0) // Rule 6: Check received amounts
+                  (_totalDueReceived > 0 || _selectedPayments.any((p) => p['unpaid'] == true))
                   ? const Color(0xFF1E293B)
                   : Colors.grey,
               shape: RoundedRectangleBorder(

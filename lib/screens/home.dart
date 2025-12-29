@@ -274,52 +274,52 @@ class _CustomerManagementAppState extends State<CustomerManagementApp> {
                 // Report Section
                 _buildReportSection(),
 
-                _buildSidebarItem(4, Icons.settings, 'Settings'),
+                // _buildSidebarItem(4, Icons.settings, 'Settings'),
               ],
             ),
           ),
 
           // User Info
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Colors.grey)),
-            ),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 20,
-                  child: Icon(Icons.person),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Admin User',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        'admin@example.com',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.more_vert, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   padding: const EdgeInsets.all(16),
+          //   decoration: const BoxDecoration(
+          //     border: Border(top: BorderSide(color: Colors.grey)),
+          //   ),
+          //   child: Row(
+          //     children: [
+          //       const CircleAvatar(
+          //         radius: 20,
+          //         child: Icon(Icons.person),
+          //       ),
+          //       const SizedBox(width: 12),
+          //       const Expanded(
+          //         child: Column(
+          //           crossAxisAlignment: CrossAxisAlignment.start,
+          //           children: [
+          //             Text(
+          //               'Admin User',
+          //               style: TextStyle(
+          //                 color: Colors.white,
+          //                 fontWeight: FontWeight.w500,
+          //               ),
+          //             ),
+          //             Text(
+          //               'admin@example.com',
+          //               style: TextStyle(
+          //                 color: Colors.grey,
+          //                 fontSize: 12,
+          //               ),
+          //             ),
+          //           ],
+          //         ),
+          //       ),
+          //       IconButton(
+          //         onPressed: () {},
+          //         icon: const Icon(Icons.more_vert, color: Colors.grey),
+          //       ),
+          //     ],
+          //   ),
+          // ),
         ],
       ),
     );
@@ -439,11 +439,11 @@ class _CustomerManagementAppState extends State<CustomerManagementApp> {
             padding: const EdgeInsets.only(left: 16),
             child: Column(
               children: [
-                _buildReportSubItem(0, Icons.history, 'Loan History'),
+                // _buildReportSubItem(0, Icons.history, 'Loan History'),
                 _buildReportSubItem(1, Icons.description, 'Outstanding Statement'),
                 _buildReportSubItem(2, Icons.history_toggle_off, 'Collection History'),
-                _buildReportSubItem(3, Icons.account_balance_wallet, 'Cash Ledger'),
-                _buildReportSubItem(4, Icons.calendar_today, 'Due Datewise Pending'),
+                // _buildReportSubItem(3, Icons.account_balance_wallet, 'Cash Ledger'),
+                // _buildReportSubItem(4, Icons.calendar_today, 'Due Datewise Pending'),
                 _buildReportSubItem(5, Icons.list_alt, 'Datewise Loan Issue'),
               ],
             ),
@@ -951,10 +951,10 @@ class _ReportSectionScreenState extends State<ReportSectionScreen> with SingleTi
               unselectedLabelColor: Colors.grey[400],
               isScrollable: true,
               tabs: const [
-                Tab(
-                  icon: Icon(Icons.history),
-                  text: 'Loan History',
-                ),
+                // Tab(
+                //   icon: Icon(Icons.history),
+                //   text: 'Loan History',
+                // ),
                 Tab(
                   icon: Icon(Icons.description),
                   text: 'Outstanding',
@@ -983,7 +983,7 @@ class _ReportSectionScreenState extends State<ReportSectionScreen> with SingleTi
               controller: _tabController,
               children: [
                 LoanHistoryReportScreen(),
-                OutstandingStatementReportScreen(),
+                OutstandingReportScreen(),
                 CollectionHistoryReportScreen(),
                 CashLedgerReportScreen(),
                 DueDatewisePendingReportScreen(),
@@ -999,7 +999,7 @@ class _ReportSectionScreenState extends State<ReportSectionScreen> with SingleTi
         index: reportSubIndex,
         children: [
           LoanHistoryReportScreen(),
-          OutstandingStatementReportScreen(),
+          OutstandingReportScreen(),
           CollectionHistoryReportScreen(),
           CashLedgerReportScreen(),
           DueDatewisePendingReportScreen(),

@@ -11,7 +11,7 @@ class collectionapiservice{
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
 
-    var url = Uri.parse('$baseUrl/collection_fetch1.php');
+    var url = Uri.parse('$baseUrl/collection_fetch2.php');
     try {
       var response = await http.post(
         url,
@@ -114,6 +114,41 @@ class collectionapiservice{
     }
   }
 
+
+  Future<Map<String, dynamic>> fetchOutstandingReport({
+    required BuildContext context,
+    String? searchQuery,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/outstanding_report.php');
+
+    Map<String, String> body = {'companyid': companyid};
+
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      body['search'] = searchQuery;
+    }
+
+    try {
+      var response = await http.post(url, body: body);
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          return responseData;
+        } else {
+          throw Exception(responseData['message']);
+        }
+      } else {
+        throw Exception('Failed to load outstanding report: ${response.statusCode}');
+      }
+    } catch (e) {
+      print("Fetch Outstanding Report Error: $e");
+      rethrow;
+    }
+  }
+
 // In the recordCollection method, ensure you're sending paidamount:
   Future<String> recordCollection({
     required BuildContext context,
@@ -126,7 +161,8 @@ class collectionapiservice{
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/collection_insert1.php');
+    // var url = Uri.parse('$baseUrl/collection_insert1.php');
+    var url = Uri.parse('$baseUrl/collection_insert2.php');
     try {
       var response = await http.post(
         url,
