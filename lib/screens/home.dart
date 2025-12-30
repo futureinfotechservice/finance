@@ -439,11 +439,11 @@ class _CustomerManagementAppState extends State<CustomerManagementApp> {
             padding: const EdgeInsets.only(left: 16),
             child: Column(
               children: [
-                // _buildReportSubItem(0, Icons.history, 'Loan History'),
+                _buildReportSubItem(0, Icons.history, 'Loan History'),
                 _buildReportSubItem(1, Icons.description, 'Outstanding Statement'),
                 _buildReportSubItem(2, Icons.history_toggle_off, 'Collection History'),
-                // _buildReportSubItem(3, Icons.account_balance_wallet, 'Cash Ledger'),
-                // _buildReportSubItem(4, Icons.calendar_today, 'Due Datewise Pending'),
+                _buildReportSubItem(3, Icons.account_balance_wallet, 'Cash Ledger'),
+                _buildReportSubItem(4, Icons.calendar_today, 'Due Datewise Pending'),
                 _buildReportSubItem(5, Icons.list_alt, 'Datewise Loan Issue'),
               ],
             ),
@@ -982,11 +982,11 @@ class _ReportSectionScreenState extends State<ReportSectionScreen> with SingleTi
             child: TabBarView(
               controller: _tabController,
               children: [
-                LoanHistoryReportScreen(),
+                LoanHistoryDetailScreen(),
                 OutstandingReportScreen(),
                 CollectionHistoryReportScreen(),
                 CashLedgerReportScreen(),
-                DueDatewisePendingReportScreen(),
+                DueDatePendingReportScreen(),
                 DateWiseLoanIssueReportScreen(),
               ],
             ),
@@ -998,11 +998,11 @@ class _ReportSectionScreenState extends State<ReportSectionScreen> with SingleTi
       return IndexedStack(
         index: reportSubIndex,
         children: [
-          LoanHistoryReportScreen(),
+          LoanHistoryDetailScreen(),
           OutstandingReportScreen(),
           CollectionHistoryReportScreen(),
           CashLedgerReportScreen(),
-          DueDatewisePendingReportScreen(),
+          DueDatePendingReportScreen(),
           DateWiseLoanIssueReportScreen(),
         ],
       );

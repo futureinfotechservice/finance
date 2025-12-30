@@ -71,6 +71,45 @@ class collectionapiservice{
       }
     }
   }
+// Add this method to collection_apiservice.dart
+  Future<Map<String, dynamic>> fetchDueDatePendingReport({
+    required BuildContext context,
+    String? dueDate,
+    String? searchQuery,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/due_date_pending_report.php');
+
+    Map<String, String> body = {'companyid': companyid};
+
+    if (dueDate != null && dueDate.isNotEmpty) {
+      body['dueDate'] = dueDate;
+    }
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      body['search'] = searchQuery;
+    }
+
+    try {
+      var response = await http.post(url, body: body);
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          return responseData;
+        } else {
+          throw Exception(responseData['message']);
+        }
+      } else {
+        throw Exception('Failed to load due date pending report: ${response.statusCode}');
+      }
+    } catch (e) {
+      print("Fetch Due Date Pending Report Error: $e");
+      rethrow;
+    }
+  }
+
 
   Future<Map<String, dynamic>> fetchCollectionHistory({
     required BuildContext context,
@@ -335,6 +374,82 @@ class collectionapiservice{
       rethrow;
     }
   }
+
+
+  // Updated cash ledger report with ledger_id parameter
+  Future<Map<String, dynamic>> fetchCashLedgerReport({
+    required BuildContext context,
+    String? fromDate,
+    String? toDate,
+    String? ledgerId, // Changed from customerName to ledgerId
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/cash_ledger_report.php');
+
+    Map<String, String> body = {'companyid': companyid};
+
+    if (fromDate != null && fromDate.isNotEmpty) {
+      body['fromDate'] = fromDate;
+    }
+    if (toDate != null && toDate.isNotEmpty) {
+      body['toDate'] = toDate;
+    }
+    if (ledgerId != null && ledgerId.isNotEmpty) {
+      body['ledgerId'] = ledgerId;
+    }
+
+    try {
+      var response = await http.post(url, body: body);
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          return responseData;
+        } else {
+          throw Exception(responseData['message']);
+        }
+      } else {
+        throw Exception('Failed to load cash ledger report: ${response.statusCode}');
+      }
+    } catch (e) {
+      print("Fetch Cash Ledger Report Error: $e");
+      rethrow;
+    }
+  }
+
+
+  Future<List<Map<String, dynamic>>> fetchAllLedgers(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/get_ledgers.php');
+
+    try {
+      var response = await http.post(
+        url,
+        body: {'companyid': companyid},
+      );
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          List<dynamic> items = responseData['ledgers'];
+          return items.map((item) => {
+            'id': item['id'].toString(),
+            'ledgerName': item['ledgerName']?.toString() ?? '',
+            'groupName': item['groupName']?.toString() ?? '',
+          }).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print("Fetch Ledgers Error: $e");
+      return [];
+    }
+  }
+
 
 }
 
