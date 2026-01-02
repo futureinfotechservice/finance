@@ -3,9 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-
 import 'package:file_picker/file_picker.dart';
-
 import '../services/customer_apiservice.dart';
 
 class CustomerMasterModel {
@@ -88,6 +86,9 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
   bool _isLoading = false;
   bool _isEditMode = false;
 
+  // Add FocusNode for customer name field
+  late FocusNode _customerNameFocusNode;
+
   final Map<String, TextEditingController> _controllers = {
     'customerName': TextEditingController(),
     'gstNumber': TextEditingController(),
@@ -106,9 +107,25 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
   void initState() {
     super.initState();
     _isEditMode = widget.customer != null;
+
+    // Initialize FocusNode
+    _customerNameFocusNode = FocusNode();
+
     if (_isEditMode) {
       _loadCustomerData();
     }
+
+    // Request focus after a short delay to ensure widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_customerNameFocusNode.hasFocus) {
+        _customerNameFocusNode.unfocus();
+      }
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          _customerNameFocusNode.requestFocus();
+        }
+      });
+    });
   }
 
   void _loadCustomerData() {
@@ -129,6 +146,8 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
 
   @override
   void dispose() {
+    // Dispose the FocusNode
+    _customerNameFocusNode.dispose();
     _controllers.forEach((key, controller) => controller.dispose());
     super.dispose();
   }
@@ -308,6 +327,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
     required String label,
     required String hint,
     required TextEditingController controller,
+    FocusNode? focusNode,
     bool isRequired = false,
     bool isTextArea = false,
     TextInputType keyboardType = TextInputType.text,
@@ -346,6 +366,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
           ),
           child: TextFormField(
             controller: controller,
+            focusNode: focusNode,
             maxLines: isTextArea ? 4 : 1,
             keyboardType: keyboardType,
             decoration: InputDecoration(
@@ -738,6 +759,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                   label: 'Customer Name',
                   hint: 'Enter customer full name',
                   controller: _controllers['customerName']!,
+                  focusNode: _customerNameFocusNode,
                   isRequired: true,
                 ),
               ),
@@ -780,17 +802,17 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                 ),
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: _buildInputField(
-                  label: 'Area ID',
-                  hint: 'Enter area ID',
-                  controller: _controllers['areaid']!,
-                  isRequired: true,
-                ),
-              ),
-            ),
+            // Expanded(
+            //   child: Padding(
+            //     padding: const EdgeInsets.only(right: 16),
+            //     child: _buildInputField(
+            //       label: 'Area ID',
+            //       hint: 'Enter area ID',
+            //       controller: _controllers['areaid']!,
+            //       isRequired: true,
+            //     ),
+            //   ),
+            // ),
             Expanded(
               child: _buildInputField(
                 label: 'Mobile Number 1',
@@ -909,6 +931,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
           label: 'Customer Name',
           hint: 'Enter customer full name',
           controller: _controllers['customerName']!,
+          focusNode: _customerNameFocusNode,
           isRequired: true,
         ),
 
@@ -1035,706 +1058,3 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
     );
   }
 }
-
-
-// import 'package:flutter/foundation.dart' show kIsWeb;
-// import 'package:image_picker/image_picker.dart';
-//
-// class CustomerMasterScreen extends StatefulWidget {
-//   const CustomerMasterScreen({super.key});
-//
-//   @override
-//   State<CustomerMasterScreen> createState() => _CustomerMasterScreenState();
-// }
-//
-// class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
-//   final _formKey = GlobalKey<FormState>();
-//   File? _aadharFile;
-//   File? _photoFile;
-//   final ImagePicker _picker = ImagePicker();
-//
-//   final Map<String, TextEditingController> _controllers = {
-//     'customerName': TextEditingController(),
-//     'gstNumber': TextEditingController(text: '22AAAAA0000A1Z5'),
-//     'address': TextEditingController(),
-//     'area': TextEditingController(),
-//     'mobile1': TextEditingController(text: '9876543210'),
-//     'mobile2': TextEditingController(text: '9876543210'),
-//     'referredByName': TextEditingController(),
-//     'referredByContact': TextEditingController(text: '9876543210'),
-//     'spouseName': TextEditingController(),
-//     'spouseNumber': TextEditingController(text: '9876543210'),
-//   };
-//
-//   @override
-//   void dispose() {
-//     _controllers.forEach((key, controller) => controller.dispose());
-//     super.dispose();
-//   }
-//
-//   Future<void> _pickAadharFile() async {
-//     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-//     if (pickedFile != null) {
-//       setState(() {
-//         _aadharFile = File(pickedFile.path);
-//       });
-//     }
-//   }
-//
-//   Future<void> _pickPhotoFile() async {
-//     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-//     if (pickedFile != null) {
-//       setState(() {
-//         _photoFile = File(pickedFile.path);
-//       });
-//     }
-//   }
-//
-//   Widget _buildInputField({
-//     required String label,
-//     required String hint,
-//     required TextEditingController controller,
-//     bool isRequired = false,
-//     bool isTextArea = false,
-//   }) {
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         Row(
-//           children: [
-//             Text(
-//               label,
-//               style: const TextStyle(
-//                 fontSize: 14,
-//                 fontWeight: FontWeight.w500,
-//                 color: Color(0xFF2D3748),
-//               ),
-//             ),
-//             if (isRequired)
-//               const Text(
-//                 ' *',
-//                 style: TextStyle(
-//                   color: Colors.red,
-//                   fontSize: 14,
-//                   fontWeight: FontWeight.w500,
-//                 ),
-//               ),
-//           ],
-//         ),
-//         const SizedBox(height: 8),
-//         Container(
-//           height: isTextArea ? 98 : 50,
-//           decoration: BoxDecoration(
-//             borderRadius: BorderRadius.circular(8),
-//             border: Border.all(color: const Color(0xFFE2E8F0)),
-//           ),
-//           child: TextFormField(
-//             controller: controller,
-//             maxLines: isTextArea ? 4 : 1,
-//             decoration: InputDecoration(
-//               hintText: hint,
-//               hintStyle: const TextStyle(
-//                 fontSize: 16,
-//                 color: Color(0xFF999999),
-//               ),
-//               contentPadding: EdgeInsets.symmetric(
-//                 horizontal: 16,
-//                 vertical: isTextArea ? 12 : 0,
-//               ),
-//               border: InputBorder.none,
-//             ),
-//             validator: (value) {
-//               if (isRequired && (value == null || value.isEmpty)) {
-//                 return 'This field is required';
-//               }
-//               return null;
-//             },
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-//
-//   Widget _buildUploadArea({
-//     required String label,
-//     required String description,
-//     required String fileTypes,
-//     required VoidCallback onTap,
-//     File? file,
-//   }) {
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         Row(
-//           children: [
-//             Text(
-//               label,
-//               style: const TextStyle(
-//                 fontSize: 14,
-//                 fontWeight: FontWeight.w500,
-//                 color: Color(0xFF2D3748),
-//               ),
-//             ),
-//             const Text(
-//               ' *',
-//               style: TextStyle(
-//                 color: Colors.red,
-//                 fontSize: 14,
-//                 fontWeight: FontWeight.w500,
-//               ),
-//             ),
-//           ],
-//         ),
-//         const SizedBox(height: 8),
-//         GestureDetector(
-//           onTap: onTap,
-//           child: Container(
-//             width: double.infinity,
-//             height: 132,
-//             decoration: BoxDecoration(
-//               borderRadius: BorderRadius.circular(8),
-//               border: Border.all(
-//                 color: const Color(0xFFE2E8F0),
-//                 width: 2,
-//               ),
-//             ),
-//             child: file != null
-//                 ? Center(
-//               child: Column(
-//                 mainAxisAlignment: MainAxisAlignment.center,
-//                 children: [
-//                   const Icon(Icons.file_present, size: 32),
-//                   const SizedBox(height: 8),
-//                   Text(
-//                     file.path.split('/').last,
-//                     style: const TextStyle(
-//                       fontSize: 14,
-//                       color: Color(0xFF4A5568),
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//             )
-//                 : Column(
-//               mainAxisAlignment: MainAxisAlignment.center,
-//               children: [
-//                 Container(
-//                   width: 32,
-//                   height: 32,
-//                   decoration: BoxDecoration(
-//                     border: Border.all(color: Colors.black),
-//                     borderRadius: BorderRadius.circular(4),
-//                   ),
-//                   child: const Icon(Icons.add, size: 24),
-//                 ),
-//                 const SizedBox(height: 8),
-//                 Text(
-//                   description,
-//                   style: const TextStyle(
-//                     fontSize: 14,
-//                     color: Color(0xFF4A5568),
-//                   ),
-//                 ),
-//                 const SizedBox(height: 4),
-//                 Text(
-//                   fileTypes,
-//                   style: const TextStyle(
-//                     fontSize: 12,
-//                     color: Color(0xFFA0AEC0),
-//                   ),
-//                 ),
-//               ],
-//             ),
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final isWeb = kIsWeb && MediaQuery.of(context).size.width > 768;
-//
-//     return Scaffold(
-//       backgroundColor: Colors.white,
-//       body: SingleChildScrollView(
-//         child: Padding(
-//           padding: isWeb
-//               ? const EdgeInsets.all(20.0)
-//               : const EdgeInsets.all(16.0),
-//           child: Center(
-//             child: Container(
-//               constraints: const BoxConstraints(maxWidth: 1299),
-//               child: Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   if (isWeb) ...[
-//                     const SizedBox(height: 20),
-//                     Container(
-//                       width: double.infinity,
-//                       height: 88,
-//                       decoration: const BoxDecoration(
-//                         color: Color(0xFF1E293B),
-//                         borderRadius: BorderRadius.only(
-//                           topLeft: Radius.circular(8),
-//                           topRight: Radius.circular(8),
-//                         ),
-//                       ),
-//                       padding: const EdgeInsets.symmetric(horizontal: 20),
-//                       child: Column(
-//                         mainAxisAlignment: MainAxisAlignment.center,
-//                         crossAxisAlignment: CrossAxisAlignment.start,
-//                         children: const [
-//                           Text(
-//                             'Customer Master',
-//                             style: TextStyle(
-//                               fontSize: 24,
-//                               fontWeight: FontWeight.w600,
-//                               color: Colors.white,
-//                             ),
-//                           ),
-//                           SizedBox(height: 4),
-//                           Text(
-//                             'Create new customer record with complete details',
-//                             style: TextStyle(
-//                               fontSize: 14,
-//                               color: Color(0xFFE2E8F0),
-//                             ),
-//                           ),
-//                         ],
-//                       ),
-//                     ),
-//                   ],
-//
-//                   Container(
-//                     decoration: BoxDecoration(
-//                       color: Colors.white,
-//                       borderRadius: BorderRadius.circular(8),
-//                       boxShadow: [
-//                         BoxShadow(
-//                           color: Colors.black.withOpacity(0.1),
-//                           blurRadius: 8,
-//                           offset: const Offset(0, 2),
-//                         ),
-//                       ],
-//                     ),
-//                     child: Column(
-//                       children: [
-//                         if (!isWeb) ...[
-//                           Container(
-//                             height: 88,
-//                             width: double.infinity,
-//                             decoration: BoxDecoration(
-//                               color: const Color(0xFF1E293B),
-//                               borderRadius: const BorderRadius.only(
-//                                 topLeft: Radius.circular(8),
-//                                 topRight: Radius.circular(8),
-//                               ),
-//                             ),
-//                             padding: const EdgeInsets.symmetric(horizontal: 20),
-//                             child: Column(
-//                               mainAxisAlignment: MainAxisAlignment.center,
-//                               crossAxisAlignment: CrossAxisAlignment.start,
-//                               children: const [
-//                                 Text(
-//                                   'Customer Master',
-//                                   style: TextStyle(
-//                                     fontSize: 24,
-//                                     fontWeight: FontWeight.w600,
-//                                     color: Colors.white,
-//                                   ),
-//                                 ),
-//                                 SizedBox(height: 4),
-//                                 Text(
-//                                   'Create new customer record with complete details',
-//                                   style: TextStyle(
-//                                     fontSize: 14,
-//                                     color: Color(0xFFE2E8F0),
-//                                   ),
-//                                 ),
-//                               ],
-//                             ),
-//                           ),
-//                         ],
-//                         Padding(
-//                           padding: EdgeInsets.all(isWeb ? 20.0 : 16.0),
-//                           child: Form(
-//                             key: _formKey,
-//                             child: LayoutBuilder(
-//                               builder: (context, constraints) {
-//                                 final isLargeScreen = constraints.maxWidth > 768;
-//
-//                                 return Column(
-//                                   crossAxisAlignment: CrossAxisAlignment.start,
-//                                   children: [
-//                                     if (isLargeScreen)
-//                                       _buildDesktopLayout()
-//                                     else
-//                                       _buildMobileLayout(),
-//
-//                                     const SizedBox(height: 30),
-//
-//                                     // Action Buttons
-//                                     Row(
-//                                       mainAxisAlignment: MainAxisAlignment.end,
-//                                       children: [
-//                                         OutlinedButton(
-//                                           onPressed: () {
-//                                             // Cancel action
-//                                           },
-//                                           style: OutlinedButton.styleFrom(
-//                                             padding: const EdgeInsets.symmetric(
-//                                               horizontal: 32,
-//                                               vertical: 12,
-//                                             ),
-//                                             side: BorderSide(
-//                                               color: Colors.grey[300]!,
-//                                             ),
-//                                             shape: RoundedRectangleBorder(
-//                                               borderRadius: BorderRadius.circular(8),
-//                                             ),
-//                                           ),
-//                                           child: const Text(
-//                                             'Cancel',
-//                                             style: TextStyle(
-//                                               fontSize: 16,
-//                                               fontWeight: FontWeight.w500,
-//                                               color: Color(0xFF4A5568),
-//                                             ),
-//                                           ),
-//                                         ),
-//                                         const SizedBox(width: 16),
-//                                         ElevatedButton(
-//                                           onPressed: () {
-//                                             if (_formKey.currentState!.validate()) {
-//                                               // Submit form
-//                                             }
-//                                           },
-//                                           style: ElevatedButton.styleFrom(
-//                                             backgroundColor: const Color(0xFF4318D1),
-//                                             padding: const EdgeInsets.symmetric(
-//                                               horizontal: 32,
-//                                               vertical: 12,
-//                                             ),
-//                                             shape: RoundedRectangleBorder(
-//                                               borderRadius: BorderRadius.circular(8),
-//                                             ),
-//                                             elevation: 2,
-//                                             shadowColor: const Color(0xFF4318D1).withOpacity(0.2),
-//                                           ),
-//                                           child: const Text(
-//                                             'Create Customer',
-//                                             style: TextStyle(
-//                                               fontSize: 16,
-//                                               fontWeight: FontWeight.w500,
-//                                               color: Colors.white,
-//                                             ),
-//                                           ),
-//                                         ),
-//                                       ],
-//                                     ),
-//                                   ],
-//                                 );
-//                               },
-//                             ),
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//             ),
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _buildDesktopLayout() {
-//     return Column(
-//       children: [
-//         // Row 1
-//         Row(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Expanded(
-//               child: Padding(
-//                 padding: const EdgeInsets.only(right: 16),
-//                 child: _buildInputField(
-//                   label: 'Customer Name',
-//                   hint: 'Enter customer full name',
-//                   controller: _controllers['customerName']!,
-//                   isRequired: true,
-//                 ),
-//               ),
-//             ),
-//             Expanded(
-//               child: _buildInputField(
-//                 label: 'GST Number',
-//                 hint: '22AAAAA0000A1Z5',
-//                 controller: _controllers['gstNumber']!,
-//               ),
-//             ),
-//           ],
-//         ),
-//
-//         const SizedBox(height: 30),
-//
-//         // Address (full width)
-//         _buildInputField(
-//           label: 'Address',
-//           hint: 'Enter complete address',
-//           controller: _controllers['address']!,
-//           isRequired: true,
-//           isTextArea: true,
-//         ),
-//
-//         const SizedBox(height: 30),
-//
-//         // Row 2
-//         Row(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Expanded(
-//               child: Padding(
-//                 padding: const EdgeInsets.only(right: 16),
-//                 child: _buildInputField(
-//                   label: 'Area',
-//                   hint: 'Enter area/locality',
-//                   controller: _controllers['area']!,
-//                   isRequired: true,
-//                 ),
-//               ),
-//             ),
-//             Expanded(
-//               child: _buildInputField(
-//                 label: 'Mobile Number 1',
-//                 hint: '9876543210',
-//                 controller: _controllers['mobile1']!,
-//                 isRequired: true,
-//               ),
-//             ),
-//           ],
-//         ),
-//
-//         const SizedBox(height: 30),
-//
-//         // Row 3
-//         Row(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Expanded(
-//               child: Padding(
-//                 padding: const EdgeInsets.only(right: 16),
-//                 child: _buildInputField(
-//                   label: 'Mobile Number 2',
-//                   hint: '9876543210',
-//                   controller: _controllers['mobile2']!,
-//                 ),
-//               ),
-//             ),
-//             Expanded(
-//               child: _buildInputField(
-//                 label: 'Referred by Name',
-//                 hint: 'Enter referrer name',
-//                 controller: _controllers['referredByName']!,
-//                 isRequired: true,
-//               ),
-//             ),
-//           ],
-//         ),
-//
-//         const SizedBox(height: 30),
-//
-//         // Row 4
-//         Row(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Expanded(
-//               child: Padding(
-//                 padding: const EdgeInsets.only(right: 16),
-//                 child: _buildInputField(
-//                   label: 'Referred by Contact',
-//                   hint: '9876543210',
-//                   controller: _controllers['referredByContact']!,
-//                 ),
-//               ),
-//             ),
-//             Expanded(
-//               child: _buildInputField(
-//                 label: 'Spouse Name',
-//                 hint: 'Enter spouse name',
-//                 controller: _controllers['spouseName']!,
-//                 isRequired: true,
-//               ),
-//             ),
-//           ],
-//         ),
-//
-//         const SizedBox(height: 30),
-//
-//         // Row 5
-//         Row(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Expanded(
-//               child: Padding(
-//                 padding: const EdgeInsets.only(right: 16),
-//                 child: _buildInputField(
-//                   label: 'Spouse Number',
-//                   hint: '9876543210',
-//                   controller: _controllers['spouseNumber']!,
-//                   isRequired: true,
-//                 ),
-//               ),
-//             ),
-//             const Expanded(child: SizedBox()),
-//           ],
-//         ),
-//
-//         const SizedBox(height: 30),
-//
-//         // Upload Sections
-//         Row(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Expanded(
-//               child: Padding(
-//                 padding: const EdgeInsets.only(right: 16),
-//                 child: _buildUploadArea(
-//                   label: 'Aadhar Upload',
-//                   description: 'Click to upload Aadhar document',
-//                   fileTypes: 'PDF, JPG, PNG up to 10MB',
-//                   onTap: _pickAadharFile,
-//                   file: _aadharFile,
-//                 ),
-//               ),
-//             ),
-//             Expanded(
-//               child: _buildUploadArea(
-//                 label: 'Photo Upload',
-//                 description: 'Click to upload customer photo',
-//                 fileTypes: 'JPG, PNG up to 5MB',
-//                 onTap: _pickPhotoFile,
-//                 file: _photoFile,
-//               ),
-//             ),
-//           ],
-//         ),
-//       ],
-//     );
-//   }
-//
-//   Widget _buildMobileLayout() {
-//     return Column(
-//       children: [
-//         _buildInputField(
-//           label: 'Customer Name',
-//           hint: 'Enter customer full name',
-//           controller: _controllers['customerName']!,
-//           isRequired: true,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'GST Number',
-//           hint: '22AAAAA0000A1Z5',
-//           controller: _controllers['gstNumber']!,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Address',
-//           hint: 'Enter complete address',
-//           controller: _controllers['address']!,
-//           isRequired: true,
-//           isTextArea: true,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Area',
-//           hint: 'Enter area/locality',
-//           controller: _controllers['area']!,
-//           isRequired: true,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Mobile Number 1',
-//           hint: '9876543210',
-//           controller: _controllers['mobile1']!,
-//           isRequired: true,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Mobile Number 2',
-//           hint: '9876543210',
-//           controller: _controllers['mobile2']!,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Referred by Name',
-//           hint: 'Enter referrer name',
-//           controller: _controllers['referredByName']!,
-//           isRequired: true,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Referred by Contact',
-//           hint: '9876543210',
-//           controller: _controllers['referredByContact']!,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Spouse Name',
-//           hint: 'Enter spouse name',
-//           controller: _controllers['spouseName']!,
-//           isRequired: true,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildInputField(
-//           label: 'Spouse Number',
-//           hint: '9876543210',
-//           controller: _controllers['spouseNumber']!,
-//           isRequired: true,
-//         ),
-//
-//         const SizedBox(height: 30),
-//
-//         _buildUploadArea(
-//           label: 'Aadhar Upload',
-//           description: 'Click to upload Aadhar document',
-//           fileTypes: 'PDF, JPG, PNG up to 10MB',
-//           onTap: _pickAadharFile,
-//           file: _aadharFile,
-//         ),
-//
-//         const SizedBox(height: 20),
-//
-//         _buildUploadArea(
-//           label: 'Photo Upload',
-//           description: 'Click to upload customer photo',
-//           fileTypes: 'JPG, PNG up to 5MB',
-//           onTap: _pickPhotoFile,
-//           file: _photoFile,
-//         ),
-//       ],
-//     );
-//   }
-// }

@@ -149,6 +149,18 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
     }
   }
 
+  DateTime? _parseDateSafe(String? dateString) {
+    if (dateString == null || dateString.isEmpty || dateString == 'null') {
+      return null;
+    }
+    try {
+      return DateTime.parse(dateString);
+    } catch (e) {
+      print('Error parsing date: $dateString, error: $e');
+      return null;
+    }
+  }
+
   Future<void> _generateCollectionNo() async {
     try {
       final collectionNo = await _apiService.generateCollectionNo(context);
@@ -312,7 +324,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
           _totalBalanceController.text = totalBalance.toStringAsFixed(2);
 
           // Initialize pending payments with FIXED penalty calculation
-          DateTime now = DateTime.now();
+          DateTime selectedDate = _selectedDate ?? DateTime.now();
           _pendingPayments.clear();
           _selectedPayments.clear();
 
@@ -321,6 +333,22 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
             double dueReceived = double.tryParse(payment['due_received']?.toString() ?? '0') ?? 0.0;
             double penaltyReceived = double.tryParse(payment['penalty_received']?.toString() ?? '0') ?? 0.0;
             double dueAmount = double.tryParse(payment['dueamount']?.toString() ?? '0') ?? 0.0;
+
+            // Get olddueno information - handle null safely
+            String? olddueno = payment['olddueno']?.toString();
+            String? oldduedateStr = payment['oldduedate']?.toString();
+            String? originalDueno = payment['original_dueno']?.toString();
+
+            DateTime? oldduedate;
+            if (oldduedateStr != null && oldduedateStr.isNotEmpty && oldduedateStr != 'null') {
+              try {
+                oldduedate = DateTime.parse(oldduedateStr);
+              } catch (e) {
+                print('Error parsing oldduedate: $oldduedateStr, error: $e');
+              }
+            }
+
+            bool hasOlddueno = olddueno != null && olddueno.isNotEmpty && olddueno != 'null';
 
             // Check if payment is fully paid (Rule 3)
             bool isDueFullyPaid = (dueReceived >= dueAmount);
@@ -339,7 +367,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
               // Check if payment is overdue - FIXED penalty amount
               if (payment['duedate'] != null) {
                 DateTime dueDate = DateTime.parse(payment['duedate']);
-                if (now.isAfter(dueDate)) {
+                if (selectedDate.isAfter(dueDate)) {
                   isOverdue = true;
                   // Calculate remaining penalty
                   remainingPenalty = _fixedPenaltyAmount - penaltyReceived;
@@ -362,6 +390,10 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                 'isOverdue': isOverdue,
                 'is_due_fully_paid': isDueFullyPaid,
                 'is_penalty_fully_paid': isPenaltyFullyPaid,
+                'has_olddueno': hasOlddueno,
+                'olddueno': olddueno,
+                'oldduedate': oldduedateStr, // Store as string
+                'original_dueno': originalDueno,
               });
 
               // Add to selected payments
@@ -371,15 +403,20 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                 'dueamount': remainingDue,
                 'original_due': dueAmount,
                 'penaltyamount': penaltyAmount,
-                'selected': false, // Rule 4: Don't default check
-                'unpaid': false, // Rule 4: Don't default check
+                'selected': false,
+                'unpaid': false,
                 'paidamount': remainingDue,
-                'due_received': 0.0, // Don't pre-fill
-                'penalty_received': 0.0, // Don't pre-fill
+                'due_received': 0.0,
+                'penalty_received': 0.0,
                 'already_received_due': dueReceived,
                 'already_received_penalty': penaltyReceived,
                 'is_due_fully_paid': isDueFullyPaid,
                 'is_penalty_fully_paid': isPenaltyFullyPaid,
+                'isOverdue': isOverdue,
+                'has_olddueno': hasOlddueno,
+                'olddueno': olddueno,
+                'oldduedate': oldduedateStr,
+                'original_dueno': originalDueno,
               });
             }
           }
@@ -717,10 +754,12 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
         if (newUnpaidValue) {
           // Auto-fill penalty received with remaining penalty
           double penaltyAmount = double.tryParse(_selectedPayments[index]['penaltyamount'].toString()) ?? 0.0;
-          _selectedPayments[index]['penalty_received'] = penaltyAmount;
+          // _selectedPayments[index]['penalty_received'] = penaltyAmount;
+          _selectedPayments[index]['penalty_received'] = 0.0;
 
           // Update controller
-          _penaltyReceivedControllers[index].text = penaltyAmount.toStringAsFixed(2);
+          // _penaltyReceivedControllers[index].text = penaltyAmount.toStringAsFixed(2);
+          _penaltyReceivedControllers[index].text = '0.00';
 
           // Rule 2: Reset due received
           _selectedPayments[index]['due_received'] = 0.0;
@@ -1881,6 +1920,39 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
             final alreadyReceivedDue = payment['due_received'] ?? 0.0;
             final alreadyReceivedPenalty = payment['penalty_received'] ?? 0.0;
             bool hasPartialPenalty = (alreadyReceivedPenalty > 0 && alreadyReceivedPenalty < _fixedPenaltyAmount);
+            // print('oldduedate : '+payment['oldduedate'].toString());
+
+            final currentStatus = payment['status']?.toString() ?? '';
+            final isPartiallyPaidPenalty = currentStatus == 'Partially Paid Penalty';
+
+            // Auto-check unpaid if status is 'Partially Paid Penalty'
+            if (isPartiallyPaidPenalty && !(selectedPayment['unpaid'] ?? false)) {
+              // Auto-set unpaid to true
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {
+                    _selectedPayments[index]['unpaid'] = true;
+                    _selectedPayments[index]['selected'] = false;
+                    _selectedPayments[index]['due_received'] = 0.0;
+
+                    // Auto-fill penalty received with remaining penalty
+                    double remainingPenalty = _fixedPenaltyAmount - alreadyReceivedPenalty;
+                    if (remainingPenalty > 0) {
+                      _selectedPayments[index]['penalty_received'] = 0.0; // Start with 0, user can edit
+                      _penaltyReceivedControllers[index].text = '0.00';
+                    } else {
+                      _selectedPayments[index]['penalty_received'] = 0.0;
+                      _penaltyReceivedControllers[index].text = '0.00';
+                    }
+
+                    // Reset due received
+                    _dueReceivedControllers[index].text = '0.00';
+                  });
+                  _updateTotalsOnly();
+                }
+              });
+            }
+
             return Container(
               height: 70,
               decoration: BoxDecoration(
@@ -1893,45 +1965,72 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
               child: Row(
                 children: [
                   // Success Payment Checkbox
-                  SizedBox(
-                    width: 80,
-                    child: Center(
-                      child: Tooltip(
-                        message: 'Mark as Paid (Collect due amount only, no penalty)',
-                        child: Checkbox(
-                          value: selectedPayment['selected'] ?? false, // Make sure to handle null
-                          onChanged: (value) {
-                            _togglePaymentSelection(index, 'success');
-                          },
-                          activeColor: Colors.green,
+                  if (!isPartiallyPaidPenalty)
+                    SizedBox(
+                      width: 80,
+                      child: Center(
+                        child: Tooltip(
+                          message: 'Mark as Paid (Collect due amount only, no penalty)',
+                          child: Checkbox(
+                            value: selectedPayment['selected'] ?? false,
+                            onChanged: (value) {
+                              _togglePaymentSelection(index, 'success');
+                            },
+                            activeColor: Colors.green,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      width: 80,
+                      child: Center(
+                        child: Tooltip(
+                          message: 'Not available for Partially Paid Penalty payments',
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            child: const Icon(
+                              Icons.block,
+                              color: Colors.grey,
+                              size: 24,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+
 
                   // Unpaid Checkbox (Disabled if not overdue)
+
                   SizedBox(
                     width: 80,
                     child: Center(
                       child: Tooltip(
-                        message: isUnpaidAllowed
+                        message: isPartiallyPaidPenalty
+                            ? 'Partially Paid Penalty - Collect remaining penalty only'
+                            : isOverdue
                             ? 'Mark as Unpaid (Collect penalty only, due amount moves to new EMI at last)'
                             : 'Unpaid option only available for overdue payments',
                         child: AbsorbPointer(
-                          absorbing: !isUnpaidAllowed,
+                          absorbing: isPartiallyPaidPenalty ? true : !isOverdue,
                           child: Opacity(
-                            opacity: isUnpaidAllowed ? 1.0 : 0.5,
+                            opacity: isPartiallyPaidPenalty || isOverdue ? 1.0 : 0.5,
                             child: Checkbox(
-                              value: selectedPayment['unpaid'] ?? false, // Make sure to handle null
-                              onChanged: isUnpaidAllowed
+                              value: isPartiallyPaidPenalty ? true : (selectedPayment['unpaid'] ?? false),
+                              onChanged: isPartiallyPaidPenalty
+                                  ? null // Disabled for Partially Paid Penalty
+                                  : isOverdue
                                   ? (value) {
                                 _togglePaymentSelection(index, 'unpaid');
                               }
                                   : null,
-                              activeColor: Colors.red,
+                              activeColor: isPartiallyPaidPenalty ? Colors.orange : Colors.red,
                               fillColor: MaterialStateProperty.resolveWith<Color>(
                                     (Set<MaterialState> states) {
-                                  if (!isUnpaidAllowed) {
+                                  if (isPartiallyPaidPenalty) {
+                                    return Colors.orange;
+                                  }
+                                  if (!isOverdue) {
                                     return Colors.grey;
                                   }
                                   return Colors.red;
@@ -1948,13 +2047,27 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                   Expanded(
                     flex: 1,
                     child: Center(
-                      child: Text(
-                        payment['dueno']?.toString() ?? '',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: isOverdue ? Colors.red : const Color(0xFF374151),
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            payment['dueno']?.toString() ?? '',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: isPartiallyPaidPenalty ? Colors.orange : (isOverdue ? Colors.red : const Color(0xFF374151)),
+                            ),
+                          ),
+                          if (isPartiallyPaidPenalty)
+                            const Text(
+                              'Partial Penalty',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -1973,6 +2086,22 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                               color: isOverdue ? Colors.red : const Color(0xFF374151),
                             ),
                           ),
+
+                          // Show old due date if this EMI was generated from another EMI
+                          if (payment['has_olddueno'] == true &&
+                              payment['oldduedate'] != null &&
+                              payment['oldduedate'].toString().isNotEmpty &&
+                              payment['oldduedate'].toString() != 'null')
+                            Text(
+                              'From: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(payment['oldduedate'].toString()))}',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.purple,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+
                           if (isOverdue)
                             const Text(
                               '(Overdue)',
@@ -2002,6 +2131,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+                          if (payment['status'] != 'Partially Paid Penalty')
                           Text(
                             _formatAmount(payment['dueamount']),
                             style: TextStyle(
@@ -2039,12 +2169,11 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: TextField(
                           focusNode: _dueReceivedFocusNodes[index],
-                          controller: _dueReceivedControllers[index],  // Use persistent controller
+                          controller: _dueReceivedControllers[index],
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
                             TextInputFormatter.withFunction(
                                   (oldValue, newValue) {
-                                // Limit to 2 decimal places
                                 if (newValue.text.contains('.')) {
                                   if (newValue.text.split('.')[1].length > 2) {
                                     return oldValue;
@@ -2054,7 +2183,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                               },
                             ),
                           ],
-                          enabled: selectedPayment['selected'] == true && !hasPartialPenalty,
+                          enabled: !isPartiallyPaidPenalty && selectedPayment['selected'] == true,
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
@@ -2062,29 +2191,49 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(4),
                               borderSide: BorderSide(
-                                color: selectedPayment['selected'] == true ? Colors.green : Colors.grey[300]!,
+                                color: isPartiallyPaidPenalty
+                                    ? Colors.grey[300]!
+                                    : selectedPayment['selected'] == true
+                                    ? Colors.green
+                                    : Colors.grey[300]!,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(4),
                               borderSide: BorderSide(
-                                color: selectedPayment['selected'] == true ? Colors.green : Colors.grey[300]!,
+                                color: isPartiallyPaidPenalty
+                                    ? Colors.grey[300]!
+                                    : selectedPayment['selected'] == true
+                                    ? Colors.green
+                                    : Colors.grey[300]!,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(4),
                               borderSide: BorderSide(
-                                color: selectedPayment['selected'] == true ? Colors.green : Colors.grey[300]!,
+                                color: isPartiallyPaidPenalty
+                                    ? Colors.grey[300]!
+                                    : selectedPayment['selected'] == true
+                                    ? Colors.green
+                                    : Colors.grey[300]!,
                               ),
                             ),
                             filled: true,
-                            fillColor: selectedPayment['selected'] == true ? Colors.green[50] : Colors.grey[100],
-                            hintText: '0.00',
+                            fillColor: isPartiallyPaidPenalty
+                                ? Colors.grey[100]!
+                                : selectedPayment['selected'] == true
+                                ? Colors.green[50]!
+                                : Colors.grey[100]!,
+                            hintText: isPartiallyPaidPenalty ? 'Not available' : '0.00',
                           ),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: selectedPayment['selected'] == true ? Colors.green[800] : Colors.grey[400],
+                            color: isPartiallyPaidPenalty
+                                ? Colors.grey[400]!
+                                : selectedPayment['selected'] == true
+                                ? Colors.green[800]!
+                                : Colors.grey[400]!,
                           ),
                           onChanged: (value) => _onDueReceivedChanged(index, value),
                         ),
@@ -2099,19 +2248,17 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Requirement 2: Show penalty amount ONLY if unpaid is checked
-                          // (even if overdue, don't show unless Unpaid is checked)
-                          if (selectedPayment['unpaid'] == true)
+                          // Always show penalty amount for Partially Paid Penalty
+                          if (isPartiallyPaidPenalty || selectedPayment['unpaid'] == true)
                             Text(
                               _formatAmount(penaltyAmount),
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
-                                color: isOverdue ? Colors.red : const Color(0xFF374151),
+                                color: isPartiallyPaidPenalty ? Colors.orange : (isOverdue ? Colors.red : const Color(0xFF374151)),
                               ),
                             )
                           else if (penaltyAmount > 0 && isOverdue)
-                          // If overdue but Unpaid not checked, show empty or show 0?
                             const Text(
                               '₹0.00',
                               style: TextStyle(
@@ -2128,17 +2275,18 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                               ),
                             ),
 
-                          // Additional info lines - only show if Unpaid is checked OR already has penalty payment
-                          if (selectedPayment['unpaid'] == true && penaltyAmount > 0 && alreadyReceivedPenalty > 0)
+                          // Show partial payment info for Partially Paid Penalty
+                          if (isPartiallyPaidPenalty)
                             Text(
                               'Remaining: ${_formatAmount(penaltyAmount)}',
                               style: const TextStyle(
                                 fontSize: 10,
                                 color: Colors.orange,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
 
-                          if (selectedPayment['unpaid'] == true && alreadyReceivedPenalty > 0)
+                          if (isPartiallyPaidPenalty && alreadyReceivedPenalty > 0)
                             Text(
                               'Already paid: ${_formatAmount(alreadyReceivedPenalty)}',
                               style: const TextStyle(
@@ -2147,7 +2295,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                               ),
                             ),
 
-                          if (selectedPayment['unpaid'] == true && isOverdue && _fixedPenaltyAmount > 0)
+                          if (isPartiallyPaidPenalty && _fixedPenaltyAmount > 0)
                             Text(
                               'Fixed: ${_formatAmount(_fixedPenaltyAmount)}',
                               style: const TextStyle(
@@ -2168,8 +2316,8 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: TextField(
                           focusNode: _penaltyReceivedFocusNodes[index],
-                          controller: _penaltyReceivedControllers[index],  // Use persistent controller
-                          enabled: selectedPayment['unpaid'] == true && isUnpaidAllowed,
+                          controller: _penaltyReceivedControllers[index],
+                          enabled: isPartiallyPaidPenalty || (selectedPayment['unpaid'] == true && isOverdue),
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
                           inputFormatters: [
@@ -2190,29 +2338,49 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(4),
                               borderSide: BorderSide(
-                                color: selectedPayment['unpaid'] == true && isUnpaidAllowed ? Colors.red : Colors.grey[300]!,
+                                color: isPartiallyPaidPenalty
+                                    ? Colors.orange
+                                    : selectedPayment['unpaid'] == true && isOverdue
+                                    ? Colors.red
+                                    : Colors.grey[300]!,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(4),
                               borderSide: BorderSide(
-                                color: selectedPayment['unpaid'] == true && isUnpaidAllowed ? Colors.red : Colors.grey[300]!,
+                                color: isPartiallyPaidPenalty
+                                    ? Colors.orange
+                                    : selectedPayment['unpaid'] == true && isOverdue
+                                    ? Colors.red
+                                    : Colors.grey[300]!,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(4),
                               borderSide: BorderSide(
-                                color: selectedPayment['unpaid'] == true && isUnpaidAllowed ? Colors.red : Colors.grey[300]!,
+                                color: isPartiallyPaidPenalty
+                                    ? Colors.orange
+                                    : selectedPayment['unpaid'] == true && isOverdue
+                                    ? Colors.red
+                                    : Colors.grey[300]!,
                               ),
                             ),
                             filled: true,
-                            fillColor: selectedPayment['unpaid'] == true && isUnpaidAllowed ? Colors.red[50] : Colors.grey[100],
+                            fillColor: isPartiallyPaidPenalty
+                                ? Colors.orange[50]!
+                                : selectedPayment['unpaid'] == true && isOverdue
+                                ? Colors.red[50]!
+                                : Colors.grey[100]!,
                             hintText: '0.00',
                           ),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: selectedPayment['unpaid'] == true && isUnpaidAllowed ? Colors.red[800] : Colors.grey[400],
+                            color: isPartiallyPaidPenalty
+                                ? Colors.orange[800]!
+                                : selectedPayment['unpaid'] == true && isOverdue
+                                ? Colors.red[800]!
+                                : Colors.grey[400]!,
                           ),
                           onChanged: (value) => _onPenaltyReceivedChanged(index, value),
                         ),
@@ -2230,37 +2398,51 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(selectedPayment, isOverdue),
+                          color: isPartiallyPaidPenalty
+                              ? Colors.orange.withOpacity(0.1)
+                              : _getStatusColor(selectedPayment, isOverdue),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              _getPaymentStatus(selectedPayment, isOverdue),
+                              isPartiallyPaidPenalty
+                                  ? 'Partial Penalty'
+                                  : _getPaymentStatus(selectedPayment, isOverdue),
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
-                                color: _getStatusTextColor(selectedPayment, isOverdue),
+                                color: isPartiallyPaidPenalty
+                                    ? Colors.orange
+                                    : _getStatusTextColor(selectedPayment, isOverdue),
                               ),
                               textAlign: TextAlign.center,
                             ),
-                            if (selectedPayment['selected'] == true && (double.tryParse(selectedPayment['due_received']?.toString() ?? '0') ?? 0.0) > 0)
+                            if (isPartiallyPaidPenalty)
+                              const Text(
+                                '(Collect remaining)',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.orange,
+                                ),
+                              )
+                            else if (selectedPayment['selected'] == true && (double.tryParse(selectedPayment['due_received']?.toString() ?? '0') ?? 0.0) > 0)
                               const Text(
                                 '(Editable)',
                                 style: TextStyle(
                                   fontSize: 9,
                                   color: Colors.green,
                                 ),
-                              ),
-                            if (selectedPayment['unpaid'] == true && (double.tryParse(selectedPayment['penalty_received']?.toString() ?? '0') ?? 0.0) > 0)
-                              const Text(
-                                '(Editable)',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.red,
+                              )
+                            else if (selectedPayment['unpaid'] == true && (double.tryParse(selectedPayment['penalty_received']?.toString() ?? '0') ?? 0.0) > 0)
+                                const Text(
+                                  '(Editable)',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.red,
+                                  ),
                                 ),
-                              ),
                           ],
                         ),
                       ),
@@ -2283,6 +2465,74 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
           ),
           child: Column(
             children: [
+              // Totals - Rule 6: Use received amounts
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Due Received:', // Rule 6
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '₹${_totalDueReceived.toStringAsFixed(2)}', // Rule 6
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Total Penalty Received:', // Rule 6
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '₹${_totalPenaltyReceived.toStringAsFixed(2)}', // Rule 6
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Grand Total:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '₹${(_totalDueReceived + _totalPenaltyReceived).toStringAsFixed(2)}', // Rule 6
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               // Penalty Info
               Container(
                 padding: const EdgeInsets.all(12),
@@ -2461,73 +2711,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> with Auto
                 ),
               ),
 
-              // Totals - Rule 6: Use received amounts
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Due Received:', // Rule 6
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        '₹${_totalDueReceived.toStringAsFixed(2)}', // Rule 6
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Total Penalty Received:', // Rule 6
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        '₹${_totalPenaltyReceived.toStringAsFixed(2)}', // Rule 6
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Grand Total:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        '₹${(_totalDueReceived + _totalPenaltyReceived).toStringAsFixed(2)}', // Rule 6
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+
 
               // Important Notes
               const SizedBox(height: 16),

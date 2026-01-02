@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../services/ac_ledger_apiservice.dart';
 
-
 class ACLedgerMasterScreen extends StatefulWidget {
   final ACLedgerModel? ledger; // For edit mode
   const ACLedgerMasterScreen({super.key, this.ledger});
@@ -22,6 +21,7 @@ class _ACLedgerMasterScreenState extends State<ACLedgerMasterScreen> {
   final TextEditingController _ledgerNameController = TextEditingController();
   final TextEditingController _openingBalanceController = TextEditingController();
   String? _selectedGroupType;
+  String? _selectedType; // Add this variable for Credit/Debit dropdown
 
   @override
   void initState() {
@@ -37,6 +37,7 @@ class _ACLedgerMasterScreenState extends State<ACLedgerMasterScreen> {
       _ledgerNameController.text = widget.ledger!.ledgername;
       _openingBalanceController.text = widget.ledger!.opening;
       _selectedGroupType = widget.ledger!.groupname;
+      _selectedType = widget.ledger!.type; // Load type from ledger data
     }
   }
 
@@ -62,6 +63,17 @@ class _ACLedgerMasterScreenState extends State<ACLedgerMasterScreen> {
       return;
     }
 
+    // Add validation for type
+    if (_selectedType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a type (Credit/Debit)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -76,6 +88,7 @@ class _ACLedgerMasterScreenState extends State<ACLedgerMasterScreen> {
           ledgername: _ledgerNameController.text,
           groupname: _selectedGroupType!,
           opening: _openingBalanceController.text.isNotEmpty ? _openingBalanceController.text : '0',
+          type: _selectedType!, // Add this
         );
       } else {
         result = await _apiService.insertLedger(
@@ -83,6 +96,7 @@ class _ACLedgerMasterScreenState extends State<ACLedgerMasterScreen> {
           ledgername: _ledgerNameController.text,
           groupname: _selectedGroupType!,
           opening: _openingBalanceController.text.isNotEmpty ? _openingBalanceController.text : '0',
+          type: _selectedType!, // Add this
         );
       }
 
@@ -125,6 +139,7 @@ class _ACLedgerMasterScreenState extends State<ACLedgerMasterScreen> {
     _formKey.currentState?.reset();
     setState(() {
       _selectedGroupType = null;
+      _selectedType = null; // Reset type
     });
     _ledgerNameController.clear();
     _openingBalanceController.clear();
@@ -421,6 +436,21 @@ class _ACLedgerMasterScreenState extends State<ACLedgerMasterScreen> {
                                     });
                                   },
                                   hintText: 'Select group type',
+                                ),
+
+                                SizedBox(height: isWeb ? 32 : 24),
+
+                                // Add Type dropdown (Credit/Debit)
+                                _buildDropdownField(
+                                  label: 'Type',
+                                  options: ACLedgerApiService.typeOptions,
+                                  selectedValue: _selectedType,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedType = value;
+                                    });
+                                  },
+                                  hintText: 'Select type (Credit/Debit)',
                                 ),
 
                                 SizedBox(height: isWeb ? 32 : 24),

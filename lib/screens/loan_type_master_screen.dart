@@ -48,6 +48,7 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
   @override
   void initState() {
     super.initState();
+    _penaltyAmountController.text = '0';
     _isEditMode = widget.loanType != null;
     if (_isEditMode) {
       _loadLoanTypeData();
@@ -466,26 +467,26 @@ class _LoanTypeMasterScreenState extends State<LoanTypeMasterScreen> {
                                   hintText: 'Select collection day',
                                 ),
 
-                                SizedBox(height: isWeb ? 32 : 24),
-
-                                _buildInputField(
-                                  label: 'Penalty Amount :',
-                                  controller: _penaltyAmountController,
-                                  keyboardType: TextInputType.number,
-                                  isRequired: false,
-                                  validator: (value) {
-                                    if (value != null && value.isNotEmpty) {
-                                      final amount = double.tryParse(value);
-                                      if (amount == null) {
-                                        return 'Enter valid amount';
-                                      }
-                                      if (amount < 0) {
-                                        return 'Amount cannot be negative';
-                                      }
-                                    }
-                                    return null;
-                                  },
-                                ),
+                                // SizedBox(height: isWeb ? 32 : 24),
+                                //
+                                // _buildInputField(
+                                //   label: 'Penalty Amount :',
+                                //   controller: _penaltyAmountController,
+                                //   keyboardType: TextInputType.number,
+                                //   isRequired: false,
+                                //   validator: (value) {
+                                //     if (value != null && value.isNotEmpty) {
+                                //       final amount = double.tryParse(value);
+                                //       if (amount == null) {
+                                //         return 'Enter valid amount';
+                                //       }
+                                //       if (amount < 0) {
+                                //         return 'Amount cannot be negative';
+                                //       }
+                                //     }
+                                //     return null;
+                                //   },
+                                // ),
 
                                 SizedBox(height: isWeb ? 32 : 24),
 

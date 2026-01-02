@@ -188,6 +188,25 @@ class _LoanHistoryDetailScreenState extends State<LoanHistoryDetailScreen> {
     );
   }
 
+  String _shouldShowPenaltyRecDate(String status, String penaltyReceiptDate) {
+    // If status is "Partially Paid Penalty" or "Penalty Paid", show penalty receipt date
+    if (status == 'Partially Paid Penalty' || status == 'Penalty Paid') {
+      return penaltyReceiptDate.isNotEmpty ? formatDate(penaltyReceiptDate) : '-';
+    }
+    // Otherwise, show "-"
+    return '-';
+  }
+
+  String _shouldShowRecDate(String status, String collectionDate) {
+    // If status is "Partially Paid Penalty" or "Penalty Paid", don't show collection date
+    if (status == 'Partially Paid Penalty' || status == 'Penalty Paid') {
+      return '-';
+    }
+    // Otherwise, show collection date if available
+    return collectionDate.isNotEmpty ? formatDate(collectionDate) : '-';
+  }
+
+
   Widget _buildScheduleTable() {
     if (scheduleData.isEmpty) {
       return const Center(
@@ -307,6 +326,18 @@ class _LoanHistoryDetailScreenState extends State<LoanHistoryDetailScreen> {
                       ),
                     ),
                   ),
+
+                  SizedBox(
+                    width: 120,
+                    child: const Text(
+                      'Pen Rec Date',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF374151),
+                      ),
+                    ),
+                  ),
+
                   SizedBox(
                     width: 100,
                     child: const Text(
@@ -400,9 +431,7 @@ class _LoanHistoryDetailScreenState extends State<LoanHistoryDetailScreen> {
                     SizedBox(
                       width: 120,
                       child: Text(
-                        item['collectiondate']?.toString()?.isNotEmpty == true
-                            ? formatDate(item['collectiondate']?.toString() ?? '')
-                            : '-',
+                        _shouldShowRecDate(status, item['collectiondate']?.toString() ?? ''),
                         style: const TextStyle(color: Color(0xFF374151)),
                       ),
                     ),
@@ -424,6 +453,15 @@ class _LoanHistoryDetailScreenState extends State<LoanHistoryDetailScreen> {
                       width: 100,
                       child: Text(
                         penaltyReceived > 0 ? formatCurrency(penaltyReceived) : '-',
+                        style: const TextStyle(color: Color(0xFF374151)),
+                      ),
+                    ),
+
+                    SizedBox(
+                      width: 120,
+                      child: Text(
+                        // Show penalty receipt date based on status
+                        _shouldShowPenaltyRecDate(status, item['collectiondate']?.toString() ?? ''),
                         style: const TextStyle(color: Color(0xFF374151)),
                       ),
                     ),

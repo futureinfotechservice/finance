@@ -29,8 +29,8 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
   final TextEditingController _loanNoController = TextEditingController();
   final TextEditingController _loanAmountController = TextEditingController();
   final TextEditingController _givenAmountController = TextEditingController();
-  final TextEditingController _interestAmountController =
-  TextEditingController();
+  final TextEditingController _interestAmountController = TextEditingController();
+  final TextEditingController _penaltyAmountController = TextEditingController();
 
   // Data
   List<CustomerMasterModel> _customers = [];
@@ -674,6 +674,9 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
               : _interestAmountController.text,
           loanDay: _selectedLoanDay!,
           noOfWeeks: _selectedNoOfWeeks!,
+          penaltyamount: _penaltyAmountController.text.isEmpty
+              ? '0'
+              : _penaltyAmountController.text,
           paymentMode: _selectedPaymentMode ?? 'Cash',
           startDate: DateFormat('yyyy-MM-dd').format(_startDate!),
           scheduleData: scheduleDataForAPI, // Add this line
@@ -722,6 +725,7 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
       _loanAmountController.clear();
       _givenAmountController.clear();
       _interestAmountController.clear();
+      _penaltyAmountController.clear();
       _paymentSchedule.clear();
       _selectedDate = DateTime.now();
       _startDate = DateTime.now();
@@ -1567,6 +1571,21 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: _buildInputField(
+              label: 'Penalty Amount :',
+              controller: _penaltyAmountController,
+              hintText: 'Enter penalty',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              backgroundColor: const Color(0xFFD9D9D9).withOpacity(0.5),
+              onChanged: _onInterestAmountChanged,
+            ),
+          ),
+        ),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(right: 16),

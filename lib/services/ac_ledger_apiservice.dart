@@ -11,6 +11,7 @@ class ACLedgerModel {
   String ledgername;
   String groupname;
   String opening;
+  String type; // Add this field
 
   ACLedgerModel({
     required this.id,
@@ -18,6 +19,7 @@ class ACLedgerModel {
     required this.ledgername,
     required this.groupname,
     required this.opening,
+    required this.type, // Add this
   });
 
   factory ACLedgerModel.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class ACLedgerModel {
       ledgername: json['ledgername']?.toString() ?? '',
       groupname: json['groupname']?.toString() ?? '',
       opening: json['opening']?.toString() ?? '0',
+      type: json['type']?.toString() ?? 'credit', // Default to credit
     );
   }
 
@@ -37,6 +40,7 @@ class ACLedgerModel {
       'ledgername': ledgername,
       'groupname': groupname,
       'opening': opening,
+      'type': type, // Add this
     };
   }
 }
@@ -48,12 +52,13 @@ class ACLedgerApiService {
     required String ledgername,
     required String groupname,
     required String opening,
+    required String type, // Add this parameter
   }) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/ac_ledger_insert.php');
+    var url = Uri.parse('$baseUrl/ac_ledger_insert1.php');
 
     try {
       var response = await http.post(
@@ -63,6 +68,7 @@ class ACLedgerApiService {
           'ledgername': ledgername,
           'groupname': groupname,
           'opening': opening,
+          'type': type, // Add this
           'addedby': userid,
         },
       );
@@ -89,12 +95,13 @@ class ACLedgerApiService {
     required String ledgername,
     required String groupname,
     required String opening,
+    required String type, // Add this parameter
   }) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/ac_ledger_update.php');
+    var url = Uri.parse('$baseUrl/ac_ledger_update1.php');
 
     try {
       var response = await http.post(
@@ -105,6 +112,7 @@ class ACLedgerApiService {
           'ledgername': ledgername,
           'groupname': groupname,
           'opening': opening,
+          'type': type, // Add this
           'addedby': userid,
         },
       );
@@ -250,4 +258,7 @@ class ACLedgerApiService {
     'LIABILITY',
     'ASSET'
   ];
+
+  // Add type options list
+  static final List<String> typeOptions = ['Credit', 'Debit'];
 }

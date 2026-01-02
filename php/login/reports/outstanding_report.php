@@ -76,7 +76,7 @@ try {
                             penaltypaid,
                             status,
                             collectiondate,
-                            paymentmode
+                            paymentmode,olddueno 
                         FROM loanschedule 
                         WHERE loanid = '$loanId' 
                           AND companyid = '$companyid'
@@ -99,6 +99,9 @@ try {
                 $weeksPaid++;
             }
             else if ($scheduleRow['status'] == 'Penalty Paid') {
+                // $weeksPaid++;
+            }
+			else if ($scheduleRow['olddueno'] != '0') {
                 // $weeksPaid++;
             }
 			else {

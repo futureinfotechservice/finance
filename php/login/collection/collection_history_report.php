@@ -89,7 +89,7 @@ try {
                       OR cm.collectionno LIKE '%$searchQuery%')";
     }
 
-    $sql .= " ORDER BY cm.collectiondate DESC, cmd.dueno ASC";
+    $sql .= " ORDER BY cm.collectiondate ASC, cmd.dueno ASC";
 
     error_log("Collection History SQL: $sql");
     

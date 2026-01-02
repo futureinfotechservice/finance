@@ -16,6 +16,7 @@ class LoanApiService {
     required String interestAmount,
     required String loanDay,
     required String noOfWeeks,
+    required String penaltyamount,
     required String paymentMode,
     required String startDate,
     required List<Map<String, dynamic>> scheduleData, // Add this parameter
@@ -24,7 +25,7 @@ class LoanApiService {
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/loan_insert1.php');
+    var url = Uri.parse('$baseUrl/loan_insert2.php');
 
     try {
       var response = await http.post(
@@ -38,6 +39,7 @@ class LoanApiService {
           'interestamount': interestAmount,
           'loanday': loanDay,
           'noofweeks': noOfWeeks,
+          'penaltyamount': penaltyamount,
           'paymentmode': paymentMode,
           'startdate': startDate,
           'addedby': userid,
