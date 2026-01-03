@@ -35,6 +35,9 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
   // Store payment data for edit mode
   PaymentEntryModel? _paymentData;
 
+  double _selectedAccountBalance = 0.0;
+  String _balanceStatus = '';
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +83,11 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
           // Mark initial data as loaded
           _initialDataLoaded = true;
         });
+
+        // Load balance for initially selected account
+        if (_selectedPaymentAccount != null) {
+          _loadAccountBalance(_selectedPaymentAccount!['id']?.toString() ?? '');
+        }
       }
     } catch (e) {
       print("Load payment accounts error: $e");
@@ -89,6 +97,41 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
           _initialDataLoaded = true;
         });
       }
+    }
+  }
+
+  Future<void> _loadAccountBalance(String accountId) async {
+    try {
+      if (accountId.isEmpty) return;
+
+      double balance = await _apiService.getAccountBalance(context, accountId);
+      if (mounted) {
+        setState(() {
+          _selectedAccountBalance = balance;
+          _updateBalanceStatus();
+        });
+      }
+    } catch (e) {
+      print("Load account balance error: $e");
+      if (mounted) {
+        setState(() {
+          _selectedAccountBalance = 0.0;
+          _balanceStatus = 'Unable to load balance';
+        });
+      }
+    }
+  }
+
+  // Add this method to update balance status message
+  void _updateBalanceStatus() {
+    double amount = double.tryParse(_amountController.text) ?? 0.0;
+
+    if (_selectedAccountBalance <= 0) {
+      _balanceStatus = 'Balance: ₹0.00';
+    } else if (amount > _selectedAccountBalance) {
+      _balanceStatus = 'Insufficient balance! Available: ₹${_selectedAccountBalance.toStringAsFixed(2)}';
+    } else {
+      _balanceStatus = 'Available balance: ₹${_selectedAccountBalance.toStringAsFixed(2)}';
     }
   }
 
@@ -109,6 +152,15 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
               (acc) => acc['id']?.toString() == _paymentData!.paymentAccountId?.toString(),
           orElse: () => {},
         );
+
+        if (matchingAccount.isNotEmpty) {
+          print("Found matching account by ID: ${matchingAccount['name']}");
+          _selectedPaymentAccount = matchingAccount;
+          // Load balance for the selected account
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _loadAccountBalance(matchingAccount['id']?.toString() ?? '');
+          });
+        }
 
         if (matchingAccount.isNotEmpty) {
           print("Found matching account by ID: ${matchingAccount['name']}");
@@ -180,6 +232,19 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
       return;
     }
 
+    // Additional balance check
+    double amount = double.tryParse(_amountController.text) ?? 0.0;
+    if (amount > _selectedAccountBalance) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Insufficient balance! Available: ₹${_selectedAccountBalance.toStringAsFixed(2)}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -229,6 +294,23 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
         if (mounted) {
           Navigator.of(context).pop(true);
         }
+      } else if (result.contains("Insufficient balance")) {
+        // Handle insufficient balance error specifically
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        // Other errors
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $result'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       print("Submit Error: $e");
@@ -365,12 +447,18 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
                 items: _paymentAccounts.map((account) {
                   return DropdownMenuItem<Map<String, dynamic>>(
                     value: account,
-                    child: Text(
-                      account['name']?.toString() ?? 'Unknown',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF374151),
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          account['name']?.toString() ?? 'Unknown',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFF374151),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }).toList(),
@@ -379,6 +467,8 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
                     setState(() {
                       _selectedPaymentAccount = value;
                     });
+                    // Load balance for selected account
+                    _loadAccountBalance(value['id']?.toString() ?? '');
                   }
                 },
               ),
@@ -393,6 +483,22 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.red,
+              ),
+            ),
+          ),
+        // Add balance display
+        if (_selectedPaymentAccount != null && _balanceStatus.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(
+              _balanceStatus,
+              style: TextStyle(
+                fontSize: 12,
+                color: (_selectedAccountBalance <= 0 ||
+                    (double.tryParse(_amountController.text) ?? 0) > _selectedAccountBalance)
+                    ? Colors.red
+                    : Colors.green,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -508,6 +614,10 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
                 child: TextFormField(
                   controller: _amountController,
                   keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (value) {
+                    // Update balance status when amount changes
+                    _updateBalanceStatus();
+                  },
                   decoration: const InputDecoration(
                     hintText: '0.00',
                     contentPadding: EdgeInsets.symmetric(horizontal: 8),
@@ -529,6 +639,12 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
                     if (amount == null || amount <= 0) {
                       return 'Enter valid amount';
                     }
+
+                    // Check if amount exceeds available balance
+                    if (_selectedPaymentAccount != null && amount > _selectedAccountBalance) {
+                      return 'Insufficient balance! Available: ₹${_selectedAccountBalance.toStringAsFixed(2)}';
+                    }
+
                     return null;
                   },
                 ),
@@ -618,7 +734,7 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
                   // Form Container
                   Container(
                     width: double.infinity,
-                    height: 531,
+                    height: 600,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(0),
@@ -658,7 +774,29 @@ class _PaymentEntryScreenState extends State<PaymentEntryScreen> {
                             ),
 
                             const SizedBox(height: 40),
-
+                            if (_selectedPaymentAccount != null && _selectedAccountBalance > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.account_balance_wallet,
+                                      size: 16,
+                                      color: Colors.blue,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Balance: ₹${_selectedAccountBalance.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.blue,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 40),
                             // Second Row
                             Row(
                               children: [

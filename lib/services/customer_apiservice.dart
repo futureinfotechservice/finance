@@ -25,12 +25,14 @@ class CustomerApiService {
     required String spousecontact,
     String? aadharFile,
     String? photoFile,
+    String? aadharFileName, // Add this
+    String? photoFileName,  // Add this
   }) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/customer_insert.php');
+    var url = Uri.parse('$baseUrl/customer_insert1.php');
 
     if (kIsWeb) {
       // Web version - use simple POST with base64
@@ -52,6 +54,8 @@ class CustomerApiService {
         spousecontact: spousecontact,
         aadharFile: aadharFile,
         photoFile: photoFile,
+        aadharFileName: aadharFileName, // Pass filename
+        photoFileName: photoFileName,   // Pass filename
       );
     } else {
       // Mobile/Desktop version - use multipart
@@ -179,9 +183,10 @@ class CustomerApiService {
     required String spousecontact,
     String? aadharFile,
     String? photoFile,
+    String? aadharFileName,
+    String? photoFileName,
   }) async {
     try {
-      // For web, we send as regular POST
       var data = {
         'companyid': companyid,
         'customername': customername,
@@ -200,15 +205,102 @@ class CustomerApiService {
         'platform': 'web',
       };
 
-      // Add base64 files if they exist
-      if (aadharFile != null && aadharFile.isNotEmpty) {
-        data['aadhar_base64'] = aadharFile;
+      // DEBUG: Print file information
+      print("=== DEBUG FILE INFO ===");
+      print("Aadhar File: ${aadharFile != null ? 'Present (length: ${aadharFile.length})' : 'NULL'}");
+      print("Photo File: ${photoFile != null ? 'Present (length: ${photoFile.length})' : 'NULL'}");
+      print("Aadhar Filename: $aadharFileName");
+      print("Photo Filename: $photoFileName");
+
+      if (aadharFile != null) {
+        // Check if it's a valid data URI
+        if (aadharFile.startsWith('data:')) {
+          print("Aadhar is data URI: YES");
+          print("Aadhar data URI prefix: ${aadharFile.substring(0, 100)}...");
+        } else {
+          print("Aadhar is NOT a data URI");
+        }
       }
+
+      if (photoFile != null) {
+        if (photoFile.startsWith('data:')) {
+          print("Photo is data URI: YES");
+          print("Photo data URI prefix: ${photoFile.substring(0, 100)}...");
+        } else {
+          print("Photo is NOT a data URI");
+        }
+      }
+      print("=== END DEBUG ===");
+
+      // Add base64 files with filenames if they exist
+      if (aadharFile != null && aadharFile.isNotEmpty) {
+        // Validate it's a data URI
+        if (!aadharFile.startsWith('data:')) {
+          print("WARNING: Aadhar file is not a data URI!");
+          // If it's not a data URI, don't send it
+        } else {
+          data['aadhar_base64'] = aadharFile;
+
+          // Use provided filename or generate one
+          String aadharFilename = 'aadhar_${DateTime.now().millisecondsSinceEpoch}';
+          if (aadharFileName != null && aadharFileName.isNotEmpty) {
+            // Get extension from original filename
+            String? extension = _getFileExtension(aadharFileName);
+            String nameWithoutExt = aadharFileName.replaceAll(RegExp(r'\.[^/.]+$'), '');
+            aadharFilename = '${nameWithoutExt}_${DateTime.now().millisecondsSinceEpoch}';
+            if (extension != null) {
+              aadharFilename += '.$extension';
+            }
+          } else {
+            // Try to detect extension from base64 data URI
+            final match = RegExp(r'data:([^;]+);base64').firstMatch(aadharFile);
+            if (match != null) {
+              String mimeType = match.group(1)!;
+              print("Detected Aadhar MIME type: $mimeType");
+              String extension = _getExtensionFromMimeType(mimeType);
+              aadharFilename += '.$extension';
+            }
+          }
+          data['aadhar_filename'] = aadharFilename;
+          print("Aadhar filename to send: ${data['aadhar_filename']}");
+        }
+      }
+
       if (photoFile != null && photoFile.isNotEmpty) {
-        data['photo_base64'] = photoFile;
+        // Validate it's a data URI
+        if (!photoFile.startsWith('data:')) {
+          print("WARNING: Photo file is not a data URI!");
+          // If it's not a data URI, don't send it
+        } else {
+          data['photo_base64'] = photoFile;
+
+          // Use provided filename or generate one
+          String photoFilename = 'photo_${DateTime.now().millisecondsSinceEpoch}';
+          if (photoFileName != null && photoFileName.isNotEmpty) {
+            // Get extension from original filename
+            String? extension = _getFileExtension(photoFileName);
+            String nameWithoutExt = photoFileName.replaceAll(RegExp(r'\.[^/.]+$'), '');
+            photoFilename = '${nameWithoutExt}_${DateTime.now().millisecondsSinceEpoch}';
+            if (extension != null) {
+              photoFilename += '.$extension';
+            }
+          } else {
+            // Try to detect extension from base64 data URI
+            final match = RegExp(r'data:([^;]+);base64').firstMatch(photoFile);
+            if (match != null) {
+              String mimeType = match.group(1)!;
+              print("Detected Photo MIME type: $mimeType");
+              String extension = _getExtensionFromMimeType(mimeType);
+              photoFilename += '.$extension';
+            }
+          }
+          data['photo_filename'] = photoFilename;
+          print("Photo filename to send: ${data['photo_filename']}");
+        }
       }
 
       print("Sending web request to: $url");
+      print("Total data fields: ${data.length}");
 
       var response = await http.post(
         url,
@@ -232,6 +324,28 @@ class CustomerApiService {
     }
   }
 
+// Helper methods for file extension handling
+  String? _getFileExtension(String filename) {
+    var parts = filename.split('.');
+    if (parts.length > 1) {
+      return parts.last.toLowerCase();
+    }
+    return null;
+  }
+
+  String _getExtensionFromMimeType(String mimeType) {
+    Map<String, String> mimeToExt = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'application/pdf': 'pdf',
+      'image/webp': 'webp',
+    };
+
+    return mimeToExt[mimeType.toLowerCase()] ?? 'png';
+  }
+
   Future<String> updateCustomer({
     required BuildContext context,
     required String customerId,
@@ -248,12 +362,14 @@ class CustomerApiService {
     required String spousecontact,
     String? aadharFile,
     String? photoFile,
+    String? aadharFileName, // Add this
+    String? photoFileName,  // Add this
   }) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/customer_update.php');
+    var url = Uri.parse('$baseUrl/customer_update1.php');
 
     if (kIsWeb) {
       return _updateCustomerWeb(
@@ -275,6 +391,8 @@ class CustomerApiService {
         spousecontact: spousecontact,
         aadharFile: aadharFile,
         photoFile: photoFile,
+        aadharFileName: aadharFileName, // Pass filename
+        photoFileName: photoFileName,   // Pass filename
       );
     } else {
       return _updateCustomerMobile(
@@ -396,6 +514,8 @@ class CustomerApiService {
     required String spousecontact,
     String? aadharFile,
     String? photoFile,
+    String? aadharFileName, // Add this parameter
+    String? photoFileName,  // Add this parameter
   }) async {
     try {
       var data = {
@@ -416,11 +536,57 @@ class CustomerApiService {
         'platform': 'web',
       };
 
+      // Add base64 files with filenames if they exist
       if (aadharFile != null && aadharFile.isNotEmpty) {
         data['aadhar_base64'] = aadharFile;
+
+        // Use provided filename or generate one
+        String aadharFilename = 'aadhar_${DateTime.now().millisecondsSinceEpoch}';
+        if (aadharFileName != null && aadharFileName.isNotEmpty) {
+          // Get extension from original filename
+          String? extension = _getFileExtension(aadharFileName);
+          aadharFilename = '${aadharFileName.replaceAll(RegExp(r'\.[^/.]+$'), '')}_${DateTime.now().millisecondsSinceEpoch}';
+          if (extension != null) {
+            aadharFilename += '.$extension';
+          }
+        } else {
+          // Try to detect extension from base64 data URI
+          if (aadharFile.startsWith('data:')) {
+            final match = RegExp(r'data:(.*?);base64').firstMatch(aadharFile);
+            if (match != null) {
+              String mimeType = match.group(1)!;
+              String extension = _getExtensionFromMimeType(mimeType);
+              aadharFilename += '.$extension';
+            }
+          }
+        }
+        data['aadhar_filename'] = aadharFilename;
       }
+
       if (photoFile != null && photoFile.isNotEmpty) {
         data['photo_base64'] = photoFile;
+
+        // Use provided filename or generate one
+        String photoFilename = 'photo_${DateTime.now().millisecondsSinceEpoch}';
+        if (photoFileName != null && photoFileName.isNotEmpty) {
+          // Get extension from original filename
+          String? extension = _getFileExtension(photoFileName);
+          photoFilename = '${photoFileName.replaceAll(RegExp(r'\.[^/.]+$'), '')}_${DateTime.now().millisecondsSinceEpoch}';
+          if (extension != null) {
+            photoFilename += '.$extension';
+          }
+        } else {
+          // Try to detect extension from base64 data URI
+          if (photoFile.startsWith('data:')) {
+            final match = RegExp(r'data:(.*?);base64').firstMatch(photoFile);
+            if (match != null) {
+              String mimeType = match.group(1)!;
+              String extension = _getExtensionFromMimeType(mimeType);
+              photoFilename += '.$extension';
+            }
+          }
+        }
+        data['photo_filename'] = photoFilename;
       }
 
       var response = await http.post(
@@ -441,7 +607,6 @@ class CustomerApiService {
       return "Failed";
     }
   }
-
   String _handleResponse(BuildContext context, String responseBody) {
     try {
       var message = jsonDecode(responseBody);

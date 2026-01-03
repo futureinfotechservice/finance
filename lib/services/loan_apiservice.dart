@@ -5,6 +5,36 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
 
+class PaymentAccountModel {
+  final String id;
+  final String ledgername;
+  final String groupname;
+  final String openingBalance;
+  final String type;
+  double currentBalance; // Will be calculated
+
+  PaymentAccountModel({
+    required this.id,
+    required this.ledgername,
+    required this.groupname,
+    required this.openingBalance,
+    required this.type,
+    required this.currentBalance,
+  });
+
+  factory PaymentAccountModel.fromJson(Map<String, dynamic> json) {
+    return PaymentAccountModel(
+      id: json['id']?.toString() ?? '',
+      ledgername: json['ledgername']?.toString() ?? '',
+      groupname: json['groupname']?.toString() ?? '',
+      openingBalance: json['opening']?.toString() ?? '0',
+      type: json['type']?.toString() ?? '',
+      currentBalance: 0.0,
+    );
+  }
+}
+
+
 class LoanApiService {
 
   Future<String> insertLoan({
@@ -19,13 +49,14 @@ class LoanApiService {
     required String penaltyamount,
     required String paymentMode,
     required String startDate,
-    required List<Map<String, dynamic>> scheduleData, // Add this parameter
+    required List<Map<String, dynamic>> scheduleData,
+    required String paymentAccountId, // Add this
   }) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
 
-    var url = Uri.parse('$baseUrl/loan_insert2.php');
+    var url = Uri.parse('$baseUrl/loan_insert3.php');
 
     try {
       var response = await http.post(
@@ -43,7 +74,8 @@ class LoanApiService {
           'paymentmode': paymentMode,
           'startdate': startDate,
           'addedby': userid,
-          'schedule': json.encode(scheduleData), // Add schedule data
+          'schedule': json.encode(scheduleData),
+          'paymentAccountId': paymentAccountId, // Add this
         },
       );
 
@@ -67,56 +99,120 @@ class LoanApiService {
       return "Failed";
     }
   }
-  // Future<String> insertLoan({
-  //   required BuildContext context,
-  //   required String customerId,
-  //   required String loanTypeId,
-  //   required String loanAmount,
-  //   required String givenAmount,
-  //   required String interestAmount,
-  //   required String loanDay,
-  //   required String noOfWeeks,
-  //   required String paymentMode,
-  //   required String startDate,
-  // }) async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   final companyid = prefs.getString('companyid') ?? '';
-  //   final userid = prefs.getString('id') ?? '';
-  //
-  //   var url = Uri.parse('$baseUrl/loan_insert.php');
-  //
-  //   try {
-  //     var response = await http.post(
-  //       url,
-  //       body: {
-  //         'companyid': companyid,
-  //         'customerid': customerId,
-  //         'loantypeid': loanTypeId,
-  //         'loanamount': loanAmount,
-  //         'givenamount': givenAmount,
-  //         'interestamount': interestAmount,
-  //         'loanday': loanDay,
-  //         'noofweeks': noOfWeeks,
-  //         'paymentmode': paymentMode,
-  //         'startdate': startDate,
-  //         'addedby': userid,
-  //       },
-  //     );
-  //
-  //     print("Loan Insert Response: ${response.body}");
-  //
-  //     return _handleResponse(context, response.body);
-  //   } catch (e) {
-  //     print("Loan Insert Error: $e");
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //         content: Text("Error: $e"),
-  //         backgroundColor: Colors.red,
-  //       ),
-  //     );
-  //     return "Failed";
-  //   }
-  // }
+  Future<List<PaymentAccountModel>> fetchPaymentAccounts(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/payment_accounts_fetch.php');
+    try {
+      var response = await http.post(
+        url,
+        body: {'companyid': companyid},
+      );
+
+      print("Payment Accounts Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+
+        if (responseData['status'] == 'success') {
+          List<PaymentAccountModel> accounts = [];
+
+          if (responseData['accounts'] != null) {
+            List<dynamic> items = responseData['accounts'];
+            accounts = items.map((item) => PaymentAccountModel.fromJson(item)).toList();
+          }
+
+          // Fetch balances for each account
+          for (var account in accounts) {
+            double balance = await _calculateAccountBalance(account.id, companyid);
+            account.currentBalance = balance;
+          }
+
+          return accounts;
+        } else {
+          print("Error fetching payment accounts: ${responseData['message']}");
+          return [];
+        }
+      } else {
+        print("HTTP Error: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("Fetch Payment Accounts Error: $e");
+      return [];
+    }
+  }
+
+// Add this private method to calculate account balance
+  Future<double> _calculateAccountBalance(String accountId, String companyid) async {
+    try {
+      // Calculate total receipts for this account
+      double totalReceipts = 0;
+      var receiptsUrl = Uri.parse('$baseUrl/account_receipts_fetch.php');
+      var receiptsResponse = await http.post(
+        receiptsUrl,
+        body: {
+          'companyid': companyid,
+          'account_id': accountId,
+        },
+      );
+
+      if (receiptsResponse.statusCode == 200) {
+        var receiptsData = json.decode(receiptsResponse.body);
+        if (receiptsData['status'] == 'success' && receiptsData['receipts'] != null) {
+          for (var receipt in receiptsData['receipts']) {
+            totalReceipts += double.parse(receipt['amount']?.toString() ?? '0');
+          }
+        }
+      }
+
+      // Calculate total payments for this account
+      double totalPayments = 0;
+      var paymentsUrl = Uri.parse('$baseUrl/account_payments_fetch.php');
+      var paymentsResponse = await http.post(
+        paymentsUrl,
+        body: {
+          'companyid': companyid,
+          'account_id': accountId,
+        },
+      );
+
+      if (paymentsResponse.statusCode == 200) {
+        var paymentsData = json.decode(paymentsResponse.body);
+        if (paymentsData['status'] == 'success' && paymentsData['payments'] != null) {
+          for (var payment in paymentsData['payments']) {
+            totalPayments += double.parse(payment['amount']?.toString() ?? '0');
+          }
+        }
+      }
+
+      // Calculate opening balance
+      double openingBalance = 0;
+      var openingUrl = Uri.parse('$baseUrl/account_opening_fetch.php');
+      var openingResponse = await http.post(
+        openingUrl,
+        body: {
+          'companyid': companyid,
+          'account_id': accountId,
+        },
+      );
+
+      if (openingResponse.statusCode == 200) {
+        var openingData = json.decode(openingResponse.body);
+        if (openingData['status'] == 'success' && openingData['opening'] != null) {
+          openingBalance = double.parse(openingData['opening']?.toString() ?? '0');
+        }
+      }
+
+      // Final balance = opening + receipts - payments
+      return openingBalance + totalReceipts - totalPayments;
+
+    } catch (e) {
+      print("Calculate Balance Error: $e");
+      return 0.0;
+    }
+  }
 
   Future<List<LoanModel>> fetchLoans(BuildContext context) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();

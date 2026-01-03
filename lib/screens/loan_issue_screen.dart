@@ -61,6 +61,11 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
   bool _isInitialLoading = true;
   String? _errorMessage;
 
+  String? _selectedPaymentAccountId;
+  String? _selectedPaymentAccountName;
+  double _selectedAccountBalance = 0.0;
+  List<PaymentAccountModel> _paymentAccounts = [];
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +81,7 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
       await Future.wait([
         _loadCustomers(),
         _loadLoanTypes(),
+        _loadPaymentAccounts(), // Add this
         _generateLoanNo(),
       ]);
       print("✅ Data initialization complete");
@@ -90,6 +96,27 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
       if (mounted) {
         setState(() {
           _isInitialLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadPaymentAccounts() async {
+    try {
+      print("Loading payment accounts...");
+      final accounts = await _loanApiService.fetchPaymentAccounts(context);
+      print("Received ${accounts.length} payment accounts");
+
+      if (mounted) {
+        setState(() {
+          _paymentAccounts = accounts;
+        });
+      }
+    } catch (e) {
+      print("❌ Error loading payment accounts: $e");
+      if (mounted) {
+        setState(() {
+          _paymentAccounts = [];
         });
       }
     }
@@ -451,6 +478,116 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
     }
   }
 
+  Widget _buildPaymentAccountDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Payment Account :',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 47,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFD1D5DB)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: _paymentAccounts.isEmpty
+                ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(12.0),
+                child: Text(
+                  'No payment accounts available',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF999999),
+                  ),
+                ),
+              ),
+            )
+                : DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedPaymentAccountId,
+                isExpanded: true,
+                icon: const Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.black,
+                  size: 24,
+                ),
+                hint: const Text(
+                  'Select payment account',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF252525),
+                  ),
+                ),
+                items: _paymentAccounts.map((account) {
+                  return DropdownMenuItem<String>(
+                    value: account.id,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          account.ledgername,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFF252525),
+                          ),
+                        ),
+                        Text(
+                          'Balance: ₹${account.currentBalance.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: account.currentBalance >= 0
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    final account = _paymentAccounts.firstWhere(
+                          (a) => a.id == value,
+                    );
+                    setState(() {
+                      _selectedPaymentAccountId = value;
+                      _selectedPaymentAccountName = account.ledgername;
+                      _selectedAccountBalance = account.currentBalance;
+                    });
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+        if (_selectedPaymentAccountId != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(
+              'Available Balance: ₹${_selectedAccountBalance.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 12,
+                color: _selectedAccountBalance >= 0 ? Colors.green : Colors.red,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildDateField({
     required String label,
     required DateTime? selectedDate,
@@ -613,6 +750,30 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
         return;
       }
 
+      // Add payment account validation
+      if (_selectedPaymentAccountId == null || _selectedPaymentAccountId!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a payment account'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      // Check if sufficient balance exists
+      final loanAmount = double.tryParse(_loanAmountController.text) ?? 0;
+      if (loanAmount > _selectedAccountBalance) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Insufficient balance! Available: ₹${_selectedAccountBalance.toStringAsFixed(2)}, Required: ₹${loanAmount.toStringAsFixed(2)}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
+
+
       setState(() {
         _isLoading = true;
       });
@@ -679,7 +840,8 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
               : _penaltyAmountController.text,
           paymentMode: _selectedPaymentMode ?? 'Cash',
           startDate: DateFormat('yyyy-MM-dd').format(_startDate!),
-          scheduleData: scheduleDataForAPI, // Add this line
+          scheduleData: scheduleDataForAPI,
+          paymentAccountId: _selectedPaymentAccountId!, // Add this
         );
 
         if (result == "Success") {
@@ -1618,6 +1780,12 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
             ),
           ),
         ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: _buildPaymentAccountDropdown(),
+          ),
+        ),
         const Expanded(child: SizedBox()), // Spacer
       ],
     );
@@ -1748,6 +1916,8 @@ class _LoanIssueScreenState extends State<LoanIssueScreen> {
           hintText: 'Select mode',
           backgroundColor: const Color(0xFFD9D9D9).withOpacity(0.5),
         ),
+        const SizedBox(height: 16),
+        _buildPaymentAccountDropdown(),
       ],
     );
   }

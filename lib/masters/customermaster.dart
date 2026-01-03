@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/customer_apiservice.dart';
+import 'dart:html' as html; // For web download
 
 class CustomerMasterModel {
   String id;
@@ -141,6 +143,21 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
       _controllers['referredByContact']!.text = widget.customer!.refercontact;
       _controllers['spouseName']!.text = widget.customer!.spousename;
       _controllers['spouseNumber']!.text = widget.customer!.spousecontact;
+
+      // Load existing file URLs
+      if (widget.customer!.aadharurl.isNotEmpty) {
+        setState(() {
+          _aadharFileName = widget.customer!.aadharurl.split('/').last;
+          _aadharFilePath = widget.customer!.aadharurl;
+        });
+      }
+
+      if (widget.customer!.photourl.isNotEmpty) {
+        setState(() {
+          _photoFileName = widget.customer!.photourl.split('/').last;
+          _photoFilePath = widget.customer!.photourl;
+        });
+      }
     }
   }
 
@@ -149,6 +166,11 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
     // Dispose the FocusNode
     _customerNameFocusNode.dispose();
     _controllers.forEach((key, controller) => controller.dispose());
+
+    // Clean up file bytes if they exist
+    _aadharBytes = null;
+    _photoBytes = null;
+
     super.dispose();
   }
 
@@ -166,9 +188,15 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
         setState(() {
           if (kIsWeb) {
             // For web
-            _aadharBytes = file.bytes;
-            _aadharFileName = file.name;
-            _aadharFilePath = 'data:${file.extension};base64,${base64.encode(file.bytes!)}';
+            if (file.bytes != null) {
+              // Create data URI
+              String mimeType = _getMimeTypeFromExtension(file.extension ?? 'png');
+              String base64String = base64.encode(file.bytes!);
+              _aadharFilePath = 'data:$mimeType;base64,$base64String';
+              _aadharBytes = file.bytes;
+              _aadharFileName = file.name;
+              print("Aadhar file prepared: ${file.name}, MIME: $mimeType");
+            }
           } else {
             // For mobile
             _aadharFilePath = file.path!;
@@ -207,9 +235,15 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
         setState(() {
           if (kIsWeb) {
             // For web
-            _photoBytes = file.bytes;
-            _photoFileName = file.name;
-            _photoFilePath = 'data:${file.extension};base64,${base64.encode(file.bytes!)}';
+            if (file.bytes != null) {
+              // Create data URI
+              String mimeType = _getMimeTypeFromExtension(file.extension ?? 'png');
+              String base64String = base64.encode(file.bytes!);
+              _photoFilePath = 'data:$mimeType;base64,$base64String';
+              _photoBytes = file.bytes;
+              _photoFileName = file.name;
+              print("Photo file prepared: ${file.name}, MIME: $mimeType");
+            }
           } else {
             // For mobile
             _photoFilePath = file.path!;
@@ -232,6 +266,155 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+// Helper method to get MIME type from extension
+  String _getMimeTypeFromExtension(String extension) {
+    Map<String, String> mimeTypes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'pdf': 'application/pdf',
+      'webp': 'image/webp',
+    };
+
+    return mimeTypes[extension.toLowerCase()] ?? 'image/png';
+  }
+
+  Future<void> _viewFile(String fileUrl) async {
+    print("Opening file: $fileUrl");
+
+    try {
+      if (kIsWeb) {
+        // For web, use JavaScript to open in new tab
+        _openUrlInNewTab(fileUrl);
+      } else {
+        // For mobile/desktop, use url_launcher
+        if (await canLaunchUrl(Uri.parse(fileUrl))) {
+          await launchUrl(
+            Uri.parse(fileUrl),
+            mode: LaunchMode.externalApplication,
+          );
+        } else {
+          throw 'Could not launch $fileUrl';
+        }
+      }
+    } catch (e) {
+      print("Error opening file: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot open file: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+// Web-specific method to open URL
+  void _openUrlInNewTab(String url) {
+    if (kIsWeb) {
+      // Method 1: Using window.open
+      html.window.open(url, '_blank');
+
+      // OR Method 2: Using anchor element (more reliable)
+      // final anchor = html.AnchorElement(href: url)
+      //   ..target = '_blank'
+      //   ..click();
+    }
+  }
+
+  void _showFilePreview(BuildContext context, String fileName, String label) {
+    Uint8List? fileBytes;
+    String? filePath;
+
+    if (label.contains('Aadhar')) {
+      fileBytes = _aadharBytes;
+      filePath = _aadharFilePath;
+    } else {
+      fileBytes = _photoBytes;
+      filePath = _photoFilePath;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Preview: $fileName'),
+        content: Container(
+          constraints: const BoxConstraints(
+            maxWidth: 400,
+            maxHeight: 500,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (fileBytes != null && (fileName.endsWith('.jpg') ||
+                  fileName.endsWith('.jpeg') ||
+                  fileName.endsWith('.png') ||
+                  fileName.endsWith('.gif')))
+                Image.memory(
+                  fileBytes,
+                  fit: BoxFit.contain,
+                  height: 300,
+                ),
+              if (fileName.endsWith('.pdf'))
+                const Column(
+                  children: [
+                    Icon(Icons.picture_as_pdf, size: 100, color: Colors.red),
+                    SizedBox(height: 16),
+                    Text(
+                      'PDF Document',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'This file can be viewed after saving',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              if (fileBytes == null)
+                const Text('File data not available for preview'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          if (filePath != null && filePath.startsWith('data:'))
+            TextButton(
+              onPressed: () async {
+                // For web, we can download the file
+                if (kIsWeb) {
+                  _downloadBase64File(filePath!, fileName);
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Download'),
+            ),
+        ],
+      ),
+    );
+  }
+
+// For web download
+  void _downloadBase64File(String dataUri, String fileName) {
+    if (kIsWeb) {
+      // Create an anchor element and trigger download
+      final encodedUri = Uri.encodeFull(dataUri);
+      final link = html.AnchorElement(href: encodedUri)
+        ..setAttribute('download', fileName)
+        ..click();
     }
   }
 
@@ -264,6 +447,8 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
           spousecontact: _controllers['spouseNumber']!.text,
           aadharFile: _aadharFilePath,
           photoFile: _photoFilePath,
+          aadharFileName: _aadharFileName, // Pass filename
+          photoFileName: _photoFileName,   // Pass filename
         );
       } else {
         result = await _apiService.insertCustomer(
@@ -281,6 +466,8 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
           spousecontact: _controllers['spouseNumber']!.text,
           aadharFile: _aadharFilePath,
           photoFile: _photoFilePath,
+          aadharFileName: _aadharFileName, // Pass filename
+          photoFileName: _photoFileName,   // Pass filename
         );
       }
 
@@ -411,8 +598,12 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
     required String fileTypes,
     required VoidCallback onTap,
     String? fileName,
+    String? fileUrl,
     bool isRequired = false,
   }) {
+    bool hasExistingFile = fileUrl != null && fileUrl.isNotEmpty;
+    bool hasNewFile = fileName != null && fileName.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -450,7 +641,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                 width: 2,
               ),
             ),
-            child: fileName != null
+            child: hasExistingFile || hasNewFile
                 ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -458,7 +649,9 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                   const Icon(Icons.file_present, size: 32, color: Colors.green),
                   const SizedBox(height: 8),
                   Text(
-                    fileName.length > 30 ? '${fileName.substring(0, 27)}...' : fileName,
+                    fileName != null
+                        ? (fileName.length > 30 ? '${fileName.substring(0, 27)}...' : fileName)
+                        : (hasExistingFile ? 'Existing file' : ''),
                     style: const TextStyle(
                       fontSize: 14,
                       color: Color(0xFF4A5568),
@@ -474,6 +667,37 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                       color: Colors.grey[600],
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  if (hasExistingFile)
+                    ElevatedButton.icon(
+                      onPressed: () => _viewFile(fileUrl!),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(120, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.remove_red_eye, size: 16),
+                      label: const Text(
+                        'View File',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  if (hasNewFile && !hasExistingFile)
+                    ElevatedButton.icon(
+                      onPressed: () => _showFilePreview(context, fileName!, label),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(120, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.preview, size: 16),
+                      label: const Text(
+                        'Preview',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
                 ],
               ),
             )
@@ -906,6 +1130,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                   fileTypes: 'PDF, JPG, PNG up to 10MB',
                   onTap: _pickAadharFile,
                   fileName: _aadharFileName,
+                  fileUrl: widget.customer?.aadharurl, // Pass existing URL if editing
                 ),
               ),
             ),
@@ -916,6 +1141,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                 fileTypes: 'JPG, PNG up to 5MB',
                 onTap: _pickPhotoFile,
                 fileName: _photoFileName,
+                fileUrl: widget.customer?.photourl, // Pass existing URL if editing
               ),
             ),
           ],
@@ -1043,6 +1269,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
           fileTypes: 'PDF, JPG, PNG up to 10MB',
           onTap: _pickAadharFile,
           fileName: _aadharFileName,
+          fileUrl: widget.customer?.aadharurl, // Pass existing URL if editing
         ),
 
         const SizedBox(height: 20),
@@ -1053,6 +1280,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
           fileTypes: 'JPG, PNG up to 5MB',
           onTap: _pickPhotoFile,
           fileName: _photoFileName,
+          fileUrl: widget.customer?.photourl, // Pass existing URL if editing
         ),
       ],
     );

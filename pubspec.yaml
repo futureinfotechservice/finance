@@ -47,6 +47,7 @@ dependencies:
   dropdown_search: ^6.0.1
   file_picker: ^5.3.3  # Cross-platform file picking
   cross_file: ^0.3.3   # Cross-platform file handling
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

@@ -38,6 +38,39 @@ class PaymentEntryApiService {
     }
   }
 
+
+  Future<double> getAccountBalance(BuildContext context, String accountId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final companyid = prefs.getString('companyid') ?? '';
+
+    var url = Uri.parse('$baseUrl/account_balance_fetch.php');
+
+    try {
+      var response = await http.post(
+        url,
+        body: {
+          'companyid': companyid,
+          'account_id': accountId,
+        },
+      );
+
+      print("Account Balance Response: ${response.statusCode} - ${response.body}");
+
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        if (data['status'] == 'success') {
+          return double.tryParse(data['balance']?.toString() ?? '0') ?? 0.0;
+        } else {
+          throw Exception(data['message'] ?? 'Failed to get balance');
+        }
+      }
+      throw Exception('Failed to load balance: ${response.statusCode}');
+    } catch (e) {
+      print("Get Account Balance Error: $e");
+      return 0.0;
+    }
+  }
+
   // Get payment accounts from AC Ledger table
   Future<List<Map<String, dynamic>>> getPaymentAccounts(BuildContext context) async {
     try {
@@ -68,6 +101,19 @@ class PaymentEntryApiService {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
+
+    // First, check account balance
+    try {
+      double accountBalance = await getAccountBalance(context, paymentAccountId);
+      double paymentAmount = double.tryParse(amount) ?? 0.0;
+
+      if (paymentAmount > accountBalance) {
+        return "Insufficient balance! Available: ₹${accountBalance.toStringAsFixed(2)}, Required: ₹${paymentAmount.toStringAsFixed(2)}";
+      }
+    } catch (e) {
+      print("Balance check error: $e");
+      // Continue even if balance check fails (for safety)
+    }
 
     var url = Uri.parse('$baseUrl/payment_entry_insert.php');
 
@@ -129,6 +175,29 @@ class PaymentEntryApiService {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final companyid = prefs.getString('companyid') ?? '';
     final userid = prefs.getString('id') ?? '';
+
+    // For update, get old amount first to compare
+    try {
+      // Get the existing payment to compare amounts
+      var oldPayment = await getPaymentById(context, paymentId);
+      if (oldPayment != null) {
+        double oldAmount = double.tryParse(oldPayment.amount) ?? 0.0;
+        double newAmount = double.tryParse(amount) ?? 0.0;
+
+        // Only check balance if the amount is increasing
+        if (newAmount > oldAmount) {
+          double difference = newAmount - oldAmount;
+          double accountBalance = await getAccountBalance(context, paymentAccountId);
+
+          if (difference > accountBalance) {
+            return "Insufficient balance! Available: ₹${accountBalance.toStringAsFixed(2)}, Additional required: ₹${difference.toStringAsFixed(2)}";
+          }
+        }
+      }
+    } catch (e) {
+      print("Balance check error during update: $e");
+      // Continue even if balance check fails
+    }
 
     var url = Uri.parse('$baseUrl/payment_entry_update.php');
 
